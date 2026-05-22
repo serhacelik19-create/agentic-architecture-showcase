@@ -18,7 +18,7 @@ This repository is a sanitized public demo of the project. It keeps the real app
 ```text
 backend/  Node.js, Express, Prisma, PostgreSQL backend
 panel/    React, Vite institution management panel
-yks/      Flutter student mobile application
+mobile-app/  Flutter student mobile application
 ```
 
 ## Tech Stack
@@ -64,7 +64,7 @@ npm install
 ```
 
 ```bash
-cd yks
+cd mobile-app
 flutter pub get
 ```
 
