@@ -16,6 +16,7 @@ This is a sanitized public demo copy of the Kortex/YKS project.
 - No API keys, database passwords, Firebase service accounts, build outputs, logs, or dependency folders are included.
 - AI and push notification services are disabled/mocked in demo mode.
 - Frontend API clients point to local development endpoints only.
+- Backend database access defaults to local Postgres.
 - Google Fonts are kept for visual fidelity.
 
 ## Local Endpoints
@@ -23,6 +24,7 @@ This is a sanitized public demo copy of the Kortex/YKS project.
 - Backend: `http://127.0.0.1:8080`
 - API base: `http://127.0.0.1:8080/api`
 - Panel dev server: `http://127.0.0.1:5173`
+- Database: `postgresql://yksuser:ykspass@127.0.0.1:5432/yksdb?schema=public`
 
 ## Notes
 

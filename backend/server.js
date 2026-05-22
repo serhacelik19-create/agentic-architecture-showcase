@@ -35,9 +35,12 @@ require('dotenv').config();
 
 const app = express();
 app.set('trust proxy', 1); // Cloud Run gibi proxy arkasında çalışan sistemler için (express-rate-limit hatalarını giderir)
+const DATABASE_URL =
+  process.env.DATABASE_URL ||
+  'postgresql://yksuser:ykspass@127.0.0.1:5432/yksdb?schema=public';
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false,
+  connectionString: DATABASE_URL,
+  ssl: false,
   max: 20, // Maksimum bağlantı sınırı
   idleTimeoutMillis: 30000, // Boşta kalan bağlantıları kapat
   connectionTimeoutMillis: 10000, // Bağlantı zaman aşımı

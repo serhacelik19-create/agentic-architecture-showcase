@@ -1,4 +1,3 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:yks/services/api_service.dart';
@@ -21,17 +20,6 @@ class _ParentNotificationsScreenState extends State<ParentNotificationsScreen> {
   void initState() {
     super.initState();
     _load();
-    _registerPushToken();
-  }
-
-  Future<void> _registerPushToken() async {
-    try {
-      await FirebaseMessaging.instance.requestPermission();
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null) await ApiService.registerParentPushToken(token);
-    } catch (_) {
-      // Firebase may not be configured in local/dev builds yet.
-    }
   }
 
   Future<void> _load({bool showSpinner = true}) async {

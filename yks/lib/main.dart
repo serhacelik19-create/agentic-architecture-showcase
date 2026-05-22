@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:yks/screens/main_screen.dart';
@@ -48,11 +47,6 @@ void main() async {
 
   try {
     await initializeDateFormatting('tr_TR', null);
-    try {
-      await Firebase.initializeApp();
-    } catch (e) {
-      debugPrint('Firebase initialization skipped: $e');
-    }
     await StorageService.init();
     ApiService.onLogoutCleanup = StorageService.clearSessionData;
 

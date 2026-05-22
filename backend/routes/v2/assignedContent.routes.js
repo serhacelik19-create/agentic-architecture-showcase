@@ -1,7 +1,5 @@
 function registerAssignedContentRoutes(app, deps) {
   const { prisma, authMiddleware, requireRole, studentScopeGuard } = deps;
-  const { GoogleGenAI } = require('@google/genai');
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const resolveInstitutionId = (req, explicitInstitutionId) => {
     if (req.user.role === 'super_admin') {
@@ -176,97 +174,36 @@ function registerAssignedContentRoutes(app, deps) {
     return { ok: true, students };
   };
 
-  // ───── Gemini Vision: Cevap Anahtarı Otomatik Tanıma ─────
+  // Demo mode: keep the route shape, but do not call an external AI service.
   app.post(
     '/api/assigned-contents/parse-answer-key',
     authMiddleware,
     requireRole('admin', 'teacher', 'super_admin'),
     async (req, res) => {
       try {
-        const { imageBase64, mimeType, sections } = req.body;
+        const { imageBase64, sections } = req.body;
 
         if (!imageBase64) {
           return res.status(400).json({ error: 'Görsel verisi (imageBase64) zorunludur.' });
         }
 
-        const sectionsInfo = Array.isArray(sections) && sections.length > 0
-          ? sections.map((s, i) => {
-            const title = s.title || `Bölüm ${i + 1}`;
-            const course = s.course ? `Ders: ${s.course}` : null;
-            const blockLabel = s.blockLabel ? `Blok: ${s.blockLabel}` : null;
-            const questionCount = `${s.questionCount || '?'} soru`;
-            return `Bölüm ${i + 1}: "${title}" — ${[course, blockLabel, questionCount].filter(Boolean).join(' — ')}`;
-          }).join('\n')
-          : 'Tek bölüm, soru sayısı bilinmiyor.';
+        const sourceSections = Array.isArray(sections) && sections.length > 0
+          ? sections
+          : [{ title: 'Demo Bölüm', questionCount: 10 }];
+        const choices = ['A', 'B', 'C', 'D', 'E'];
 
-        const prompt = `Bu görsel bir cevap anahtarı içeriyor. Görselden soru numaralarını ve doğru cevap şıklarını (A, B, C, D veya E) çıkar.
-
-Bölüm bilgisi:
-${sectionsInfo}
-
-Kurallar:
-- Verilen bölüm bilgisindeki ders, blok ve soru sayısına sıkı şekilde uy.
-- Aynı sayfada birden fazla ders veya deneme varsa yalnızca eşleşen bloğu oku.
-- Beklenen soru sayısından fazla cevap döndürme.
-- Her sorunun cevabını sırasıyla ver.
-- Cevaplar yalnızca A, B, C, D veya E olabilir.
-- Eğer bir cevap okunamıyorsa null yaz.
-- Birden fazla bölüm varsa her bölümü ayrı döndür.
-- Yanıtını YALNIZCA geçerli JSON olarak ver, başka metin ekleme.
-
-JSON formatı:
-{
-  "sections": [
-    {
-      "title": "Bölüm adı",
-      "answers": ["A", "B", "C", "D", ...]
-    }
-  ]
-}`;
-
-        const cleanedBase64 = String(imageBase64).replace(/^data:[^;]+;base64,/, '');
-        const resolvedMime = mimeType || 'image/jpeg';
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    data: cleanedBase64,
-                    mimeType: resolvedMime,
-                  },
-                },
-              ],
-            },
-          ],
+        res.json({
+          sections: sourceSections.map((section, sectionIndex) => {
+            const questionCount = Math.max(1, Number(section.questionCount) || 10);
+            return {
+              title: section.title || `Bölüm ${sectionIndex + 1}`,
+              answers: Array.from({ length: questionCount }, (_, index) =>
+                choices[(index + sectionIndex) % choices.length],
+              ),
+            };
+          }),
+          demo: true,
         });
-
-        const rawText = String(response?.text || '').trim();
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          return res.status(422).json({ error: 'Gemini yanıtından JSON ayrıştırılamadı.', raw: rawText });
-        }
-
-        const parsed = JSON.parse(jsonMatch[0]);
-
-        if (!parsed.sections || !Array.isArray(parsed.sections)) {
-          return res.status(422).json({ error: 'Gemini yanıtında "sections" bulunamadı.', raw: rawText });
-        }
-
-        // Cevapları normalize et
-        const validChoices = new Set(['A', 'B', 'C', 'D', 'E']);
-        for (const section of parsed.sections) {
-          section.answers = (section.answers || []).map((answer) => {
-            const normalized = String(answer || '').trim().toUpperCase();
-            return validChoices.has(normalized) ? normalized : null;
-          });
-        }
-
-        res.json(parsed);
       } catch (err) {
         console.error('ANSWER_KEY_PARSE_ERROR:', err);
         res.status(500).json({ error: 'İçerik işleme sırasında bir hata oluştu.' });

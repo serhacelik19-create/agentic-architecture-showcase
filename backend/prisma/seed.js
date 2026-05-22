@@ -5,7 +5,9 @@ const bcrypt = require('bcryptjs');
 
 require('dotenv').config();
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString =
+  process.env.DATABASE_URL ||
+  'postgresql://yksuser:ykspass@127.0.0.1:5432/yksdb?schema=public';
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
