@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "Tarifleriniz için yemek fotoğrafları çekebilmeniz ve malzemeleri tarayabilmeniz için kamera erişimine ihtiyaç duyuyoruz.";
+"NSPhotoLibraryUsageDescription" = "Tarifleriniz için fotoğraf seçebilmeniz ve profil resminizi güncelleyebilmeniz için fotoğraf arşivinize erişime ihtiyaç duyuyoruz.";
+"NSMicrophoneUsageDescription" = "Sesli tarif arama ve sesli komutları kullanabilmeniz için mikrofon erişimine ihtiyaç duyuyoruz.";
+"NSSpeechRecognitionUsageDescription" = "Söylediklerinizi anlayıp size uygun tarifleri gösterebilmek için konuşma tanıma erişimine ihtiyaç duyuyoruz.";

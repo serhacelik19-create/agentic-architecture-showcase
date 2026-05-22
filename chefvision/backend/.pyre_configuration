@@ -1,0 +1,10 @@
+{
+  "source_directories": [
+    "."
+  ],
+  "search_path": [
+    ".",
+    "venv/lib/site-packages",
+    "venv/lib/python3.9/site-packages"
+  ]
+}

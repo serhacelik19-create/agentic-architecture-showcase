@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "Wir benoetigen Kamerazugriff, damit Sie Essensfotos fuer Rezepte aufnehmen und die intelligente Zutaten-Erkennung nutzen koennen.";
+"NSPhotoLibraryUsageDescription" = "Wir benoetigen Zugriff auf Ihre Fotomediathek, damit Sie Essensfotos fuer Rezepte auswaehlen und Ihr Profilbild aktualisieren koennen.";
+"NSMicrophoneUsageDescription" = "Wir benoetigen Mikrofonzugriff, damit Sie die Sprachsuche fuer Rezepte und Sprachbefehle nutzen koennen.";
+"NSSpeechRecognitionUsageDescription" = "Wir benoetigen Zugriff auf die Spracherkennung, damit wir Sie verstehen und die passendsten Rezepte finden koennen.";

@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "Abbiamo bisogno dell'accesso alla fotocamera per consentirti di scattare foto dei piatti per le ricette e usare il riconoscimento intelligente degli ingredienti.";
+"NSPhotoLibraryUsageDescription" = "Abbiamo bisogno dell'accesso alla libreria foto per consentirti di scegliere foto dei piatti per le ricette e aggiornare la tua immagine del profilo.";
+"NSMicrophoneUsageDescription" = "Abbiamo bisogno dell'accesso al microfono per consentirti di usare la ricerca ricette vocale e i comandi vocali.";
+"NSSpeechRecognitionUsageDescription" = "Abbiamo bisogno dell'accesso al riconoscimento vocale per capire cio che dici e trovare le ricette piu pertinenti.";

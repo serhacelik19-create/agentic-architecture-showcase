@@ -1,0 +1,38 @@
+[
+  {
+    "id": "01-home",
+    "title": "Turn Ingredients Into Dinner",
+    "subtitle": "Snap what's in your kitchen and get instant recipe ideas powered by AI.",
+    "badge": "AI COOKING",
+    "input": "01-home.png",
+    "output": "01-home-premium.png",
+    "accent": "#6D5EF7"
+  },
+  {
+    "id": "02-scan",
+    "title": "AI That Understands Your Ingredients",
+    "subtitle": "ChefVision analyzes your photo and identifies ingredients in seconds.",
+    "badge": "SMART SCAN",
+    "input": "02-scan.png",
+    "output": "02-scan-premium.png",
+    "accent": "#D48A47"
+  },
+  {
+    "id": "03-match",
+    "title": "Smart Recipe Matches For You",
+    "subtitle": "Discover personalized meals based on ingredients, time, servings and calories.",
+    "badge": "PERSONALIZED",
+    "input": "03-match.png",
+    "output": "03-match-premium.png",
+    "accent": "#2F9D8F"
+  },
+  {
+    "id": "04-steps",
+    "title": "Cook Step By Step With Confidence",
+    "subtitle": "Follow beautifully guided instructions with clear progress and voice support.",
+    "badge": "GUIDED MODE",
+    "input": "04-steps.png",
+    "output": "04-steps-premium.png",
+    "accent": "#7C63F2"
+  }
+]

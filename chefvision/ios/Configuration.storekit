@@ -1,0 +1,106 @@
+{
+  "identifier" : "ChefVisionIAP",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "tr_TR",
+    "_storefront" : "TUR",
+    "_type" : "settings"
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "ChefVisionSubscriptions",
+      "localizations" : [
+
+      ],
+      "name" : "ChefVision Plans",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "30",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "plus_sub",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "12 Tarif/Gün, Reklamsız",
+              "displayName" : "PLUS",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "com.chefvision.plus",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "PLUS",
+          "subscriptionGroupID" : "ChefVisionSubscriptions",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "60",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "pro_sub",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "28 Tarif/Gün, Fotoğraf ile Ekleme",
+              "displayName" : "PRO",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "com.chefvision.pro",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "PRO",
+          "subscriptionGroupID" : "ChefVisionSubscriptions",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "100",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "premium_sub",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "75 Tarif/Gün, Sesli/Görüntülü Asistan",
+              "displayName" : "PREMIUM",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "com.chefvision.premium",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "PREMIUM",
+          "subscriptionGroupID" : "ChefVisionSubscriptions",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}

@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "We need camera access so you can take food photos for recipes and use smart ingredient recognition.";
+"NSPhotoLibraryUsageDescription" = "We need photo library access so you can choose food photos for recipes and update your profile picture.";
+"NSMicrophoneUsageDescription" = "We need microphone access so you can use voice recipe search and voice commands.";
+"NSSpeechRecognitionUsageDescription" = "We need speech recognition access so we can understand what you say and find the most relevant recipes.";

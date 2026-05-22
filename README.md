@@ -38,10 +38,19 @@ A comprehensive **University Information Portal & Clinic CMS Template** custom-d
 * **Features**: Dynamic student services portal, academic unit manager, administrative doctor staff directory, emergency polyclinics manager, automatic PDF food menu parser, and an interactive AI virtual assistant.
 * *For setup and run instructions, please refer to the [Dicle University Template README](./dicle-university-template/README.md).*
 
+### 3. [chefvision](./chefvision)
+A smart recipe advisor and ingredient recognition system named **ChefVision AI**, powered by camera scans and advanced voice assistant interactions.
+* **mobile-app**: Flutter client with camera scanning, local notifications, secure storage, and voice commands.
+* **backend**: Python (FastAPI) back-end integrated with PostgreSQL database, Redis caching, Firebase authentication endpoints, and Gemini AI.
+* **dashboard**: Next.js (App Router) web dashboard for admin oversight.
+* *For setup and run instructions, please refer to the [ChefVision README](./chefvision/README.md).*
+
 ---
 
 ## 🛠️ Key Technologies Showcased
 
-- **Frontend**: Flutter, Next.js (App Router), React, TailwindCSS, Vite
-- **Backend & Database**: Node.js (TypeScript), Express, PostgreSQL, Prisma ORM, RESTful APIs
+- **Frontend**: Flutter (Dart), Next.js (React/TypeScript), TailwindCSS, Lottie, Framer Motion
+- **Backend & Database**: Node.js (TypeScript), Python (FastAPI), Express, PostgreSQL, Prisma ORM, Redis
+- **Integrations & AI**: Gemini AI (Image Scan & Text APIs), Firebase Auth, Apple/Google StoreKit billing interfaces, Speech-to-Text & TTS voice engines
 - **Methods**: Agentic Workflows, AI-Assisted Pair Programming, Rapid Prototyping
+
