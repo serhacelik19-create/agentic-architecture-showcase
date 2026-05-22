@@ -73,3 +73,5 @@ The backend includes a local `.env.example` file and a Docker Compose PostgreSQL
 ## Purpose
 
 The goal of this repository is to demonstrate architecture, product thinking, UI implementation, backend organization, and mobile app development across a real education technology project without exposing private customer data or production infrastructure.
+
+For a short note on how this public demo was prepared, including AI-assisted coding, verification steps, and trade-offs, see [Development Notes](./LEARNING_NOTES.md).
