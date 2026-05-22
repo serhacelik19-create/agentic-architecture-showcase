@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 # HARDCODE FOR CLOUD SHELL ENVIRONMENT
 # Bu satır, terminalde export yapmasanız bile betiğin doğru veritabanına bağlanmasını sağlar.
-os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_KaTmAz7v9PuM@ep-broad-snow-agpwhkgg-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require"
+os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "postgresql://YOUR_DATABASE_USER:YOUR_DATABASE_PASSWORD@YOUR_DATABASE_HOST/YOUR_DATABASE_NAME?sslmode=require")
 
 # Add parent directory to path to allow importing app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

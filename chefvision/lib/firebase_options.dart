@@ -46,30 +46,28 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: '***REMOVED***',
-    appId: '1:457051767073:web:ce1c2f546da69db6c17e60',
-    messagingSenderId: '457051767073',
-    projectId: 'tarif-487200',
-    authDomain: 'tarif-487200.firebaseapp.com',
-    storageBucket: 'tarif-487200.firebasestorage.app',
+    apiKey: 'YOUR_FIREBASE_API_KEY_HERE',
+    appId: 'YOUR_FIREBASE_WEB_APP_ID_HERE',
+    messagingSenderId: 'YOUR_FIREBASE_MESSAGING_SENDER_ID_HERE',
+    projectId: 'YOUR_FIREBASE_PROJECT_ID_HERE',
+    authDomain: 'YOUR_FIREBASE_AUTH_DOMAIN_HERE',
+    storageBucket: 'YOUR_FIREBASE_STORAGE_BUCKET_HERE',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: '***REMOVED***',
-    appId:
-        '1:457051767073:android:PLACEHOLDER', // TODO: Update with actual Android App ID
-    messagingSenderId: '457051767073',
-    projectId: 'tarif-487200',
-    storageBucket: 'tarif-487200.firebasestorage.app',
+    apiKey: 'YOUR_FIREBASE_API_KEY_HERE',
+    appId: 'YOUR_FIREBASE_ANDROID_APP_ID_HERE',
+    messagingSenderId: 'YOUR_FIREBASE_MESSAGING_SENDER_ID_HERE',
+    projectId: 'YOUR_FIREBASE_PROJECT_ID_HERE',
+    storageBucket: 'YOUR_FIREBASE_STORAGE_BUCKET_HERE',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: '***REMOVED***',
-    appId:
-        '1:457051767073:ios:f942fa867880eedcc17e60', // Updated with actual iOS App ID
-    messagingSenderId: '457051767073',
-    projectId: 'tarif-487200',
-    storageBucket: 'tarif-487200.firebasestorage.app',
-    iosBundleId: 'com.chefvision', // Updated Bundle ID
+    apiKey: 'YOUR_FIREBASE_API_KEY_HERE',
+    appId: 'YOUR_FIREBASE_IOS_APP_ID_HERE',
+    messagingSenderId: 'YOUR_FIREBASE_MESSAGING_SENDER_ID_HERE',
+    projectId: 'YOUR_FIREBASE_PROJECT_ID_HERE',
+    storageBucket: 'YOUR_FIREBASE_STORAGE_BUCKET_HERE',
+    iosBundleId: 'com.chefvision',
   );
 }

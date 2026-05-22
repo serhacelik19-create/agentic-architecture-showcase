@@ -8,32 +8,32 @@ class Settings(BaseSettings):
     
     # Database
     # Default to PostgreSQL
-    database_url: str = "postgresql://chefvision:chefvision_secret@localhost:5432/chefvision_db"
+    database_url: str = "postgresql://YOUR_DATABASE_USER:YOUR_DATABASE_PASSWORD@localhost:5432/chefvision_db"
     
     # Redis
-    redis_url: str = "rediss://default:AdPJAAIncDJkMzEwODM1YzNkODM0MTlhYjc4YzI2ZDQ2ZWU0M2RlMHAyNTQyMTc@valid-werewolf-54217.upstash.io:6379/0"
+    redis_url: str = "redis://localhost:6379/0"
     
     # JWT Settings
-    jwt_secret_key: str = "chefvision-super-secret-key-change-in-production"
+    jwt_secret_key: str = "YOUR_JWT_SECRET_KEY_HERE"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     
     # App
     debug: bool = True
-    secret_key: str = "dev-secret-key"
+    secret_key: str = "YOUR_DEV_SECRET_KEY_HERE"
     api_v1_prefix: str = "/api/v1"
     
     # AI Models
     # ⚠️ WARNING: Default values are for local development only.
     # In production, these MUST be overridden via .env or environment variables.
     # Never commit real API keys to version control!
-    gemini_api_key: str = "***REMOVED***"
+    gemini_api_key: str = "YOUR_GEMINI_API_KEY_HERE"
     gemini_flash_model: str = "gemini-3.1-flash-lite-preview"
     gemini_vision_model: str = "gemini-3-flash-preview"
     
     # Firebase
     # ⚠️ WARNING: Override this via .env in production!
-    firebase_api_key: str = "***REMOVED***"
+    firebase_api_key: str = "YOUR_FIREBASE_API_KEY_HERE"
 
     # Payment Verification
     # Stripe

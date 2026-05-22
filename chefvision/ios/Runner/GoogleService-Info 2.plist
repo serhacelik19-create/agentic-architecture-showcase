@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>***REMOVED***</string>
+	<string>YOUR_FIREBASE_API_KEY_HERE</string>
 	<key>GCM_SENDER_ID</key>
-	<string>457051767073</string>
+	<string>YOUR_GCM_SENDER_ID_HERE</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.chefvision</string>
 	<key>PROJECT_ID</key>
-	<string>tarif-487200</string>
+	<string>YOUR_FIREBASE_PROJECT_ID_HERE</string>
 	<key>STORAGE_BUCKET</key>
-	<string>tarif-487200.firebasestorage.app</string>
+	<string>YOUR_FIREBASE_STORAGE_BUCKET_HERE</string>
 	<key>IS_ADS_ENABLED</key>
 	<false/>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true/>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:457051767073:ios:f942fa867880eedcc17e60</string>
+	<string>YOUR_GOOGLE_APP_ID_HERE</string>
 </dict>
 </plist>

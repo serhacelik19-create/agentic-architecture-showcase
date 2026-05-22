@@ -3,7 +3,7 @@ import os
 import sys
 
 # API Key from config
-API_KEY = "***REMOVED***"
+API_KEY = "YOUR_GEMINI_API_KEY_HERE"
 
 genai.configure(api_key=API_KEY)
 
