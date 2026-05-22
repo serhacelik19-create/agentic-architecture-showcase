@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model FoodMenu {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique // The date for this menu
+  soup      String
+  main      String
+  side      String
+  extra     String
+  totalCal  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model News {
+  id        Int      @id @default(autoincrement())
+  title     String
+  slug      String   @unique
+  content   String
+  image     String?
+  date      DateTime @default(now())
+  category  String   @default("Genel")
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  slug      String   @unique
+  date      DateTime @default(now())
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id          Int      @id @default(autoincrement())
+  title       String
+  date        DateTime
+  location    String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PageContent {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique
+  title     String
+  content   String
+  category  String   @default("KURUMSAL") // KURUMSAL, IDARI, BILGI, HIZMET
+  updatedAt DateTime @updatedAt
+}
+
+model AcademicUnit {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String   // FACULTY, INSTITUTE, SCHOOL, VOCATIONAL, CENTER, DEPARTMENT
+  slug      String   @unique
+  website     String?
+  description String?
+  leader      String?
+  phone       String?
+  email       String?
+  address     String?
+  departments String? // Stored as comma-separated string
+  createdAt   DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StudentInfo {
+  id          Int      @id @default(autoincrement())
+  title       String   @default("Öğrenci")
+  description String   @default("Detaylı bilgilere buradan ulaşabilirsiniz.")
+  buttonText  String   @default("Sayfaya Git")
+  buttonUrl   String   @default("/ogrenci")
+  links       String   @default("[]") // Stored as JSON string
+  updatedAt   DateTime @updatedAt
+}
+
+model StudentService {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  icon        String   // Lucide icon name
+  type        String   @default("LINK") // LINK, MENU, CALENDAR, MODAL
+  url         String?  // For LINK type
+  content     String?  // For MODAL content or extra config
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ResearchItem {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  icon        String?  // Lucide icon name
+  url         String?
+  type        String   @default("HIGHLIGHT") // HIGHLIGHT, CENTER
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model HospitalPolyclinic {
+  id          Int      @id @default(autoincrement())
+  name        String
+  icon        String   @default("Activity")
+  active      Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model HospitalAnnouncement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String
+  date        DateTime @default(now())
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AcademicCalendarItem {
+  id        Int      @id @default(autoincrement())
+  term      String   // e.g., "Güz Yarıyılı"
+  date      String   // Free text for flexibility e.g., "16-20 Ekim"
+  event     String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StaffMember {
+  id          Int      @id @default(autoincrement())
+  name        String
+  title       String?
+  department  String
+  phone       String?
+  email       String?
+  room        String?
+  avatar      String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ChatIntent {
+  id        Int      @id @default(autoincrement())
+  intentId  String   @unique
+  patterns  String   // JSON string array
+  response  String
+  actions   String?  // JSON string array
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String    @unique
+  password      String
+  role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}

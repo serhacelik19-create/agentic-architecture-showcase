@@ -1,0 +1,106 @@
+{
+  "timestamp": "2026-02-06T16:34:58.067Z",
+  "counts": {
+    "news": 5,
+    "hospitalAnnouncements": 10,
+    "events": 11
+  },
+  "samples": {
+    "news": [
+      {
+        "id": 1,
+        "title": "Dicle Üniversitesi ve DİSİDER Arasında İş Birliği Protokolü",
+        "slug": "disider-isbirligi-protokolu",
+        "content": "Dicle Üniversitesi ile Diyarbakır Sanayici ve İş Dünyası Derneği (DİSİDER) arasında inovasyon ve girişimcilik merkezi kurulmasına yönelik iş birliği protokolü imzalandı. Rektörümüz Prof. Dr. Kamuran Eronat ve DİSİDER Başkanı Şeyhmus Akbaş'ın katıldığı törenle imzalanan protokol, üniversite-sanayi iş birliğini güçlendirmeyi hedefliyor.",
+        "image": "https://images.unsplash.com/photo-1629904853716-f004b3a43697?q=80&w=1000&auto=format&fit=crop",
+        "date": "2026-01-22T00:00:00.000Z",
+        "category": "Haber",
+        "published": true,
+        "createdAt": "2026-02-06T16:23:59.888Z",
+        "updatedAt": "2026-02-06T16:25:30.382Z"
+      },
+      {
+        "id": 2,
+        "title": "6 Şubat Depremlerini Anma Programı",
+        "slug": "6-subat-depremleri-anma",
+        "content": "6 Şubat depremlerinin yıl dönümü vesilesiyle Dicle Üniversitesi'nde hayatını kaybeden vatandaşlarımız için mevlit ve dua programı düzenlendi. Yoğun katılımla gerçekleşen programda duygusal anlar yaşandı.",
+        "image": "https://images.unsplash.com/photo-1549488497-2956cf28734c?q=80&w=1000&auto=format&fit=crop",
+        "date": "2026-02-06T00:00:00.000Z",
+        "category": "Haber",
+        "published": true,
+        "createdAt": "2026-02-06T16:23:59.910Z",
+        "updatedAt": "2026-02-06T16:25:30.412Z"
+      },
+      {
+        "id": 3,
+        "title": "Hukuk Fakültesinde 'Kamu Sağlık Yönetimi' Konferansı",
+        "slug": "kamu-saglik-yonetimi-konferansi",
+        "content": "Dicle Üniversitesi Hukuk Fakültesi tarafından düzenlenen 'Kamu Sağlık Yönetimi' konulu konferans, alanında uzman akademisyenlerin katılımıyla gerçekleştirildi. Sağlık hukuku ve yönetimi konularının derinlemesine ele alındığı konferansa öğrenciler yoğun ilgi gösterdi.",
+        "image": "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=1000&auto=format&fit=crop",
+        "date": "2026-02-06T00:00:00.000Z",
+        "category": "Haber",
+        "published": true,
+        "createdAt": "2026-02-06T16:23:59.915Z",
+        "updatedAt": "2026-02-06T16:25:30.417Z"
+      }
+    ],
+    "hospitalAnnouncements": [
+      {
+        "id": 1,
+        "title": "Ziyaret Saatleri Düzenlemesi",
+        "content": "Hastanemiz ziyaret saatleri 12:30-13:30 ve 18:30-19:30 olarak güncellenmiştir.",
+        "date": "2026-02-06T13:04:21.816Z",
+        "active": true,
+        "createdAt": "2026-02-06T13:04:21.821Z",
+        "updatedAt": "2026-02-06T13:04:21.821Z"
+      },
+      {
+        "id": 2,
+        "title": "MHRS Randevu Sistemi",
+        "content": "Muayene randevularınızı MHRS üzerinden veya 182 numaralı hattan alabilirsiniz.",
+        "date": "2026-02-06T13:04:21.816Z",
+        "active": true,
+        "createdAt": "2026-02-06T13:04:21.821Z",
+        "updatedAt": "2026-02-06T13:04:21.821Z"
+      },
+      {
+        "id": 3,
+        "title": "Poliklinik Randevu Sistemi Güncellemesi",
+        "content": "Online randevu sistemimizde yapılan bakım çalışması tamamlanmıştır. Artık 15 gün sonrasına kadar randevu alabilirsiniz.",
+        "date": "2026-02-06T16:23:59.978Z",
+        "active": true,
+        "createdAt": "2026-02-06T16:23:59.978Z",
+        "updatedAt": "2026-02-06T16:23:59.978Z"
+      }
+    ],
+    "events": [
+      {
+        "id": 1,
+        "title": "Bahar Dönemi Vize Sınavları Başlangıcı",
+        "date": "2026-02-12T21:00:00.000Z",
+        "location": "Tüm Kampüs",
+        "description": "2025-2026 Eğitim Öğretim Yılı Bahar Dönemi ara sınavları başlamaktadır.",
+        "createdAt": "2026-02-06T12:20:10.138Z",
+        "updatedAt": "2026-02-06T12:20:10.138Z"
+      },
+      {
+        "id": 2,
+        "title": "Matematiksel İlişkilendirmeyi Öğretme Çalıştayı",
+        "date": "2026-02-02T00:00:00.000Z",
+        "location": "Ziya Gökalp Eğitim Fakültesi",
+        "description": "Matematik eğitimi üzerine modern yaklaşımlar ve ilişkilendirme stratejileri.",
+        "createdAt": "2026-02-06T16:23:59.932Z",
+        "updatedAt": "2026-02-06T16:23:59.932Z"
+      },
+      {
+        "id": 3,
+        "title": "Nurettin Rençber Konseri",
+        "date": "2026-02-14T00:00:00.000Z",
+        "location": "Kongre Merkezi",
+        "description": "Sevilen sanatçı Nurettin Rençber, Dicle Üniversitesi öğrencileriyle buluşuyor.",
+        "createdAt": "2026-02-06T16:23:59.938Z",
+        "updatedAt": "2026-02-06T16:23:59.938Z"
+      }
+    ]
+  }
+}
