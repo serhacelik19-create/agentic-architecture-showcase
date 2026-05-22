@@ -16,6 +16,7 @@ This is a sanitized public demo copy of the Kortex/YKS project.
 - No API keys, database passwords, Firebase service accounts, build outputs, logs, or dependency folders are included.
 - AI and push notification services are disabled/mocked in demo mode.
 - Frontend API clients point to local development endpoints only.
+- Google Fonts are kept for visual fidelity.
 
 ## Local Endpoints
 

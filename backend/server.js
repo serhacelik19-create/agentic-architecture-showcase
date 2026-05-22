@@ -57,15 +57,15 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Panel (React) için gerekli
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      fontSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: ["'self'"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
     },
   },
-  crossOriginEmbedderPolicy: false,
+  crossOriginEmbedderPolicy: false, // Google Fonts uyumsuz
 }));
 
 // 2. CORS Sıkılaştırması - Bulut (Cloud) ve Mobil uyumlu esneklik
