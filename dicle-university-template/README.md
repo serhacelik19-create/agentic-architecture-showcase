@@ -1,4 +1,4 @@
-# University Information Portal & Hospital CMS (Template for Dicle University)
+# Dicle University Information Portal & Hospital CMS Template
 
 > [!NOTE]
 > This project is a custom template designed for **Dicle University**. It is currently a **Work in Progress (~50% completed)**, serving as a functional boilerplate/portfolio demonstration showing modern full-stack integrations.
