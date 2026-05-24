@@ -1,4 +1,4 @@
-# Multi-Project Showcase & AI-Driven Development
+# AI-Augmented Software Architecture & Product Engineering
 
 > [!NOTE]
 > **Workspace Status: Active Development** — The projects inside this workspace are actively maintained, refactored, and updated with new features and modern methodologies.
@@ -14,7 +14,7 @@ One of the core philosophies behind the development of these projects is **conti
 Instead of seeing unfamiliar stacks as obstacles, I approached them as opportunities to learn, grow, and demonstrate that a software engineer's most valuable asset is the ability to acquire new skills on the fly.
 
 ### 🤖 Collaborative AI & Agentic Workflows
-All projects here are built using **modern AI-assisted development methodologies (Vibe Coding)**. By collaborating closely with advanced LLMs, coding agents, and autonomous AI orchestration tools:
+All projects here are built using **modern AI-assisted development methodologies (LLM-assisted engineering & agentic workflows)**. By collaborating closely with advanced LLMs, coding agents, and autonomous AI orchestration tools:
 - I transformed conceptual designs into structured, production-ready boilerplates rapidly.
 - I bridged technical gaps in syntax, environment configurations, and dependency integration.
 - I maintained clean architectural patterns, demonstrating how developers can act as systems orchestrators and architects alongside AI.

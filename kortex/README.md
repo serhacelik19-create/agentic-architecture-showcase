@@ -77,4 +77,4 @@ The backend includes a local `.env.example` file and a Docker Compose PostgreSQL
 
 The goal of this repository is to demonstrate architecture, product thinking, UI implementation, backend organization, and mobile app development across a real education technology project without exposing private customer data or production infrastructure.
 
-For a detailed write-up on how this project was built and refactored using AI agents (Vibe Coding), including my verification loops and tool setups, see [Development Notes](./LEARNING_NOTES.md).
+For a detailed write-up on how this project was built and refactored using AI agents (LLM-assisted engineering), including my verification loops and tool setups, see [Development Notes](./LEARNING_NOTES.md).

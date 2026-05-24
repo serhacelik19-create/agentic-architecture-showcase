@@ -1,8 +1,8 @@
-# AI-Agent Orchestrated Development (Vibe Coding Case Study)
+# AI-Agent Orchestrated Development (Case Study)
 
 This repository serves as a portfolio demo of a full-stack application comprising a **Node.js/Express backend**, a **React web panel**, and a **Flutter mobile app**. 
 
-The defining aspect of this project is **not** just the final code, but **how it was delivered**. I developed and refactored this entire codebase without any prior syntax experience in Flutter (Dart) or React (TypeScript), working entirely as a human-in-the-loop orchestrator directing AI agents—a development style often referred to as **"Vibe Coding"**.
+The defining aspect of this project is **not** just the final code, but **how it was delivered**. I developed and refactored this entire codebase without any prior syntax experience in Flutter (Dart) or React (TypeScript), working entirely as a human-in-the-loop orchestrator directing AI agents—a development style often referred to as **"AI-Assisted Software Engineering"**.
 
 ---
 

@@ -1,9 +1,9 @@
 # Dicle University Information Portal & Hospital CMS Template
 
 > [!NOTE]
-> This project is a custom template designed for **Dicle University**. It is currently a **Work in Progress (~50% completed)**, serving as a functional boilerplate/portfolio demonstration showing modern full-stack integrations.
+> This project is a custom template designed for **Dicle University**. It is currently under **Active Development**, serving as a functional boilerplate/portfolio demonstration showing modern full-stack integrations.
 > 
-> Crafted via **Vibe Coding** methodologies (collaborative iteration between developer and AI coding agents).
+> Crafted via **AI-Assisted Software Engineering** methodologies (collaborative iteration between developer and AI coding agents).
 
 A modern, feature-rich web application built with **Next.js 16 (App Router, Turbopack)**, **Prisma ORM**, **PostgreSQL**, and **NextAuth.js v5**. This project serves as a comprehensive platform combining an academic university information portal with a medical clinic/hospital management system.
 
