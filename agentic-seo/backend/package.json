@@ -1,7 +1,7 @@
 {
   "name": "agentic-seo-backend",
   "version": "1.0.0",
-  "description": "Agentic SEO & İçerik Otopilotu Backend Servisi",
+  "description": "Agentic SEO & Content Autopilot Backend Service",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

@@ -4,7 +4,7 @@ dotenv.config();
 
 export interface PublishResult {
   success: boolean;
-  platform: 'WordPress' | 'Webflow' | 'Simülasyon';
+  platform: 'WordPress' | 'Webflow' | 'Simulation';
   url?: string;
   message: string;
 }
@@ -16,7 +16,7 @@ export class PublishService {
   public static async publish(
     title: string, 
     content: string, 
-    platform: 'WordPress' | 'Webflow' | 'Simülasyon' = 'Simülasyon'
+    platform: 'WordPress' | 'Webflow' | 'Simulation' = 'Simulation'
   ): Promise<PublishResult> {
     console.log(`[PublishService] Publishing article. Platform: ${platform}, Title: "${title}"`);
 
@@ -25,7 +25,7 @@ export class PublishService {
         return this.publishToWordPress(title, content);
       case 'Webflow':
         return this.publishToWebflow(title, content);
-      case 'Simülasyon':
+      case 'Simulation':
       default:
         return this.simulatePublish(title, content);
     }
@@ -160,7 +160,7 @@ export class PublishService {
     
     return {
       success: true,
-      platform: 'Simülasyon',
+      platform: 'Simulation',
       url: simulatedUrl,
       message: 'Simulation Mode: Article has been successfully stored in the local simulated drafts repository and is ready to review.'
     };

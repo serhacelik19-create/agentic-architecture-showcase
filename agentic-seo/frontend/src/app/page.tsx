@@ -132,16 +132,16 @@ function CustomSelect({ label, value, options, onChange, disabled }: CustomSelec
 
 // Configurable Constants (Fully English)
 const sizeOptions = [
-  { value: 'kisa', label: 'Short (500 - 800 Words)' },
-  { value: 'dengeli', label: 'Balanced (1200 - 1500 Words)' },
-  { value: 'kapsamli', label: 'Pillar Content (2000 - 2500+ Words)' }
+  { value: 'short', label: 'Short (500 - 800 Words)' },
+  { value: 'balanced', label: 'Balanced (1200 - 1500 Words)' },
+  { value: 'comprehensive', label: 'Pillar Content (2000 - 2500+ Words)' }
 ];
 
 const toneOptions = [
-  { value: 'profesyonel', label: 'Professional / Corporate' },
-  { value: 'samimi', label: 'Casual / Engaging Blog' },
-  { value: 'akademik', label: 'Educational / Academic' },
-  { value: 'satis', label: 'Persuasive / Sales Focused' }
+  { value: 'professional', label: 'Professional / Corporate' },
+  { value: 'casual', label: 'Casual / Engaging Blog' },
+  { value: 'academic', label: 'Educational / Academic' },
+  { value: 'sales', label: 'Persuasive / Sales Focused' }
 ];
 
 const limitOptions = [
@@ -151,7 +151,7 @@ const limitOptions = [
 ];
 
 const platformOptions = [
-  { value: 'Simülasyon', label: 'Simulated Webhook (Recommended)' },
+  { value: 'Simulation', label: 'Simulated Webhook (Recommended)' },
   { value: 'WordPress', label: 'WordPress REST API' },
   { value: 'Webflow', label: 'Webflow CMS API' }
 ];
@@ -160,8 +160,8 @@ export default function Dashboard() {
   // Local States
   const [keyword, setKeyword] = useState('');
   const [limit, setLimit] = useState(3);
-  const [size, setSize] = useState<'kisa' | 'dengeli' | 'kapsamli'>('dengeli');
-  const [tone, setTone] = useState<'profesyonel' | 'samimi' | 'akademik' | 'satis'>('profesyonel');
+  const [size, setSize] = useState<'short' | 'balanced' | 'comprehensive'>('balanced');
+  const [tone, setTone] = useState<'professional' | 'casual' | 'academic' | 'sales'>('professional');
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,7 +180,7 @@ export default function Dashboard() {
 
   // Active Layout Toggles
   const [isEditingOutline, setIsEditingOutline] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<'WordPress' | 'Webflow' | 'Simülasyon'>('Simülasyon');
+  const [selectedPlatform, setSelectedPlatform] = useState<'WordPress' | 'Webflow' | 'Simulation'>('Simulation');
   const [activeTab, setActiveTab] = useState<'preview' | 'html'>('preview');
   const [copied, setCopied] = useState(false);
 

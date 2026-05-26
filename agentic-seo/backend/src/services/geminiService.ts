@@ -21,8 +21,8 @@ export class GeminiService {
   public static async generateSEOOutline(
     keyword: string, 
     competitors: ScrapedArticle[],
-    size: 'kisa' | 'dengeli' | 'kapsamli' = 'dengeli',
-    tone: 'profesyonel' | 'samimi' | 'akademik' | 'satis' = 'profesyonel'
+    size: 'short' | 'balanced' | 'comprehensive' = 'balanced',
+    tone: 'professional' | 'casual' | 'academic' | 'sales' = 'professional'
   ): Promise<SEOOutline> {
     console.log(`[GeminiService] Generating SEO Outline for keyword: "${keyword}"... (Size: ${size}, Tone: ${tone})`);
     
@@ -41,7 +41,7 @@ export class GeminiService {
       return `Competitor ${i + 1} (${c.title}):\nURL: ${c.url}\nHeadings:\n${competitorHeaders}\nContent Excerpt: ${c.bodyExcerpt.slice(0, 1000)}...\n`;
     }).join('\n---\n');
 
-    const targetWords = size === 'kisa' ? 700 : size === 'kapsamli' ? 2500 : 1300;
+    const targetWords = size === 'short' ? 700 : size === 'comprehensive' ? 2500 : 1300;
 
     const prompt = `
       You are a world-class SEO strategist and content marketing expert.
@@ -93,7 +93,7 @@ export class GeminiService {
     keyword: string, 
     outline: SEOOutline, 
     competitors: ScrapedArticle[],
-    tone: 'profesyonel' | 'samimi' | 'akademik' | 'satis' = 'profesyonel'
+    tone: 'professional' | 'casual' | 'academic' | 'sales' = 'professional'
   ): Promise<string> {
     console.log(`[GeminiService] Writing article: "${outline.suggestedTitle}" (Tone: ${tone})`);
 
@@ -123,7 +123,7 @@ export class GeminiService {
       ${competitorsExcerpt.slice(0, 8000)}
       
       WRITING AND FORMATTING INSTRUCTIONS:
-      1. **CRITICAL:** Write the entire article in **ENGLISH**. Match the tone requested ("${tone}"). For "profesyonel" use high-level business professional; "samimi" use engaging, casual, conversational; "akademik" use heavily researched, source-driven; "satis" use high-converting, benefits-focused, persuasive copy.
+      1. **CRITICAL:** Write the entire article in **ENGLISH**. Match the tone requested ("${tone}"). For "professional" use high-level business professional; "casual" use engaging, casual, conversational; "academic" use heavily researched, source-driven; "sales" use high-converting, benefits-focused, persuasive copy.
       2. Format the output directly as clean **HTML markup**. Only use standard HTML tags (do not wrap in markdown backticks or block biers).
       3. Only use HTML tags like \`<h2>\`, \`<h3>\`, \`<p>\`, \`<ul>\`, \`<li>\`, \`<strong>\`, and \`<em>\`. Generate appropriate URL-friendly ids on headers (e.g. <h2 id="introduction">).
       4. Do not include root tags like \`<html>\`, \`<head>\` or \`<body>\`. Just generate the article body.
