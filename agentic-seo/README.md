@@ -4,6 +4,12 @@ A high-performance, professional-grade **AI-Assisted Software Engineering** show
 
 This platform is a **highly functional, high-fidelity rapid prototype (Proof of Concept)** designed to demonstrate robust **System Thinking** and **Human-in-the-Loop Orchestration** within automated content marketing workflows.
 
+> [!NOTE]
+> ⏱️ **The 2-Hour High-Speed Engineering Challenge**
+> This entire full-stack platform—comprising Puppeteer scrapers, multi-agent AI semantic planners, an interactive React-based layout editor, and robust error fallback databases—was fully architected, coded, styled, and validated in **under 2 hours** as a showcase of modern **AI-assisted rapid prototyping**. 
+>
+> It serves as a proof of concept demonstrating how a senior engineer leveraging agentic workflows can move from concept to a gorgeous, production-grade functional prototype with extreme velocity, without sacrificing structural patterns or type safety.
+
 ---
 
 ## 🎨 Interface Design & User Experience

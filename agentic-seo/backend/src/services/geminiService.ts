@@ -87,6 +87,142 @@ export class GeminiService {
   }
 
   /**
+   * Multi-Agent Part 1: The Researcher Agent.
+   * Analyzes competitors deeply to find "content gaps" and missing technical angles.
+   */
+  public static async researchContentGaps(keyword: string, competitors: ScrapedArticle[]): Promise<string> {
+    console.log(`[Researcher Agent] Analyzing competitor content gaps for "${keyword}"...`);
+    if (!geminiApiKey || geminiApiKey.startsWith('YOUR_')) {
+      return "Content Gap: Competitors lack deep architectural diagrams, schema markup, and advanced 2026 developer trends.";
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+    const dataExcerpt = competitors.map(c => `Title: ${c.title}\nHeaders: ${c.headers.map(h => h.text).join(', ')}\nSnippet: ${c.bodyExcerpt.slice(0, 500)}`).join('\n---\n');
+
+    const prompt = `
+      You are the "SEO Researcher Agent". Your job is to analyze top-ranking pages for "${keyword}" and spot content gaps.
+      What are they missing? What questions do they leave unanswered? 
+      
+      COMPETITOR DATA:
+      ${dataExcerpt}
+
+      Write a short, highly actionable SEO gap report (max 250 words) listing 3 critical gaps to address in our new article.
+    `;
+
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (err: any) {
+      console.error(`[Researcher Agent] Error: ${err.message}`);
+      return "Gap analysis failed. Focus on providing richer technical schemas and deeper microservices explanation.";
+    }
+  }
+
+  /**
+   * Multi-Agent Part 3: Image Prompter Agent.
+   * Generates premium prompt instructions for selecting or generating the article's hero image.
+   */
+  public static async generateFeaturedImagePrompt(keyword: string, title: string): Promise<string> {
+    console.log(`[Image Prompter Agent] Creating optimized image prompt for "${title}"...`);
+    if (!geminiApiKey || geminiApiKey.startsWith('YOUR_')) {
+      return "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200&auto=format&fit=crop"; // Premium abstract banner fallback
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+    const prompt = `
+      You are the "Creative Designer Agent". Your job is to generate a highly detailed prompt for generating an article cover image using AI (like Midjourney, DALL-E) or searching Unsplash.
+      The keyword is "${keyword}" and the article title is "${title}".
+      
+      Provide a clean JSON response with two keys:
+      {
+        "searchQuery": "Single best 2-word Unsplash search query (e.g. 'abstract technology' or 'cyberpunk server')",
+        "aiPrompt": "High-fidelity digital illustration prompt for DALL-E (3D render, minimalist, neon gradients, high-tech)"
+      }
+    `;
+
+    try {
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' }
+      });
+      const data = JSON.parse(result.response.text());
+      // For simplified demo purposes, we will return an elegant stock image using their searchQuery
+      return `https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1200&auto=format&fit=crop&q=${encodeURIComponent(data.searchQuery || keyword)}`;
+    } catch (err) {
+      return "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200&auto=format&fit=crop";
+    }
+  }
+
+  /**
+   * Multi-Agent Part 4: Internal Linker Agent.
+   * Automatically scans existing article titles and links them inside the newly generated content.
+   */
+  public static injectInternalLinks(content: string, existingArticles: { id: string; title: string; keyword: string }[]): string {
+    console.log(`[Internal Linker Agent] Analyzing links. Total articles to link: ${existingArticles.length}`);
+    let updatedContent = content;
+
+    for (const article of existingArticles) {
+      const escapedKeyword = article.keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b(${escapedKeyword})\\b`, 'gi');
+      
+      // Inject internal link once to prevent over-linking
+      let matchCount = 0;
+      updatedContent = updatedContent.replace(regex, (match) => {
+        matchCount++;
+        if (matchCount === 1) {
+          console.log(`[Internal Linker Agent] Linked "${match}" to keyword: "${article.keyword}"`);
+          return `<a href="/blog/${article.id}" class="text-blue-600 hover:underline font-semibold">${match}</a>`;
+        }
+        return match;
+      });
+    }
+
+    return updatedContent;
+  }
+
+  /**
+   * Reflection Loop: Self-Optimization.
+   * Analyzes an existing low-ranking article against its original goal and optimizes it.
+   */
+  public static async selfOptimizeArticle(title: string, content: string, currentRank: number): Promise<string> {
+    console.log(`[Self-Optimizer Agent] Optimizing low-ranking article "${title}" (Current Rank: #${currentRank})`);
+    if (!geminiApiKey || geminiApiKey.startsWith('YOUR_')) {
+      return content + "\n<!-- Optimized by Gemini Self-Optimizer Agent (Rank improvement attempt) -->";
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+    const prompt = `
+      You are the "Senior Editor and SEO Optimizer Agent".
+      We published this article: "${title}".
+      It currently ranks at #${currentRank} on Google, which is unacceptable. We want it in the Top 3.
+      
+      Review the original content:
+      ${content.slice(0, 10000)}
+      
+      Rewrite, refine and inject:
+      1. More semantic and technical definitions.
+      2. Clear bullet points and rich tables where necessary.
+      3. A proactive tone that captures search intent immediately.
+      
+      Return ONLY clean, optimized HTML body.
+    `;
+
+    try {
+      const result = await model.generateContent(prompt);
+      let optimized = result.response.text();
+      if (optimized.startsWith('```html')) {
+        optimized = optimized.replace(/^```html\s*/, '').replace(/\s*```$/, '');
+      } else if (optimized.startsWith('```')) {
+        optimized = optimized.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      return optimized.trim();
+    } catch (err: any) {
+      console.error(`[Self-Optimizer] Error during self-optimization: ${err.message}`);
+      return content;
+    }
+  }
+
+  /**
    * Generates a fully fleshed out, high-value, plagiarism-free HTML article based on the SEO Outline and competitor references.
    */
   public static async generateFullArticle(
@@ -197,3 +333,4 @@ export class GeminiService {
     return html;
   }
 }
+

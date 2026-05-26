@@ -152,9 +152,8 @@ export class PublishService {
     // Artificial delay to simulate real network request
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const simulatedUrl = `https://agentic-seo-autopilot.local/drafts/${encodeURIComponent(
-      title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-    )}`;
+    // Point dynamically to local server to allow testing micro-blog page rendering
+    const simulatedUrl = `http://localhost:3000/blog/temp_preview`;
 
     console.log(`[PublishService] Simulated publishing completed successfully.`);
     

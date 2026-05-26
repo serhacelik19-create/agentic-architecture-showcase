@@ -24,14 +24,26 @@ model Outline {
 }
 
 model Article {
-  id           String   @id @default(uuid())
-  keyword      String   @unique
-  title        String
-  content      String   // HTML code
-  tone         String
-  seoScore     Int      @default(0)
-  status       String   // "draft" | "published"
-  publishedUrl String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String    @id @default(uuid())
+  keyword       String    @unique
+  title         String
+  content       String    // HTML code
+  tone          String
+  seoScore      Int       @default(0)
+  status        String    // "draft" | "published"
+  publishedUrl  String?
+  featuredImage String?   // URL of header/featured image
+  lastCheckedAt DateTime? // Reflection: last checked ranking
+  googleRank    Int?      // Reflection: ranking position
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
+
+model AutopilotKeyword {
+  id        String   @id @default(uuid())
+  keyword   String   @unique
+  status    String   // "pending" | "processing" | "completed"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

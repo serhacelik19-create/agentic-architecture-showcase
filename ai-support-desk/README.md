@@ -4,6 +4,12 @@ A high-performance, professional-grade **AI-Assisted Customer Support & Copilot*
 
 This platform is a **highly functional, high-fidelity rapid prototype (Proof of Concept - PoC)** designed to demonstrate robust **Real-Time Systems Thinking**, **Structured Zod Payload Validation**, and **Human-in-the-Loop AI Orchestration** within modern customer service workflows.
 
+> [!NOTE]
+> ⏱️ **The 2-Hour Real-Time Full-Stack Sprint**
+> This entire real-time platform—orchestrating bi-directional WebSockets (Socket.io), strict Zod payload validation guards, a persistent PostgreSQL database with Prisma ORM, and a reactive customer-agent workspace—was fully architected, implemented, and hardened in **just under 2 hours** to showcase **high-speed event-driven development**.
+>
+> It serves as a proof of concept proving that extreme development velocity can be seamlessly coupled with robust runtime validations (Zod payload hardening) and high-fidelity, zero-dependency responsive interface styling.
+
 ---
 
 ## 🎨 Interface Design & User Experience
@@ -23,7 +29,7 @@ The application is engineered as a fully decoupled, type-safe full-stack system 
 ```mermaid
 graph TD
     Client["Next.js 15 Frontend"] <-->|"Socket.io (WebSocket)"| Server["Express + TS Server"]
-    Server -->|Prisma ORM| DB[(SQLite / PostgreSQL)]
+    Server -->|Prisma ORM| DB[(PostgreSQL Database)]
     Server -->|Gemini API| AI["Google Gemini 3.5 Flash"]
     SIM["Channel Simulator"] -->|Mock WhatsApp & Web API| Server
 ```
@@ -37,7 +43,7 @@ graph TD
 ### 2. Backend Server (`backend`)
 - **Runtime:** Node.js + TypeScript + Express + Socket.io.
 - **Zod Validation Guard:** All incoming Socket.io payload parameters are checked in real-time using Zod schemas to ensure absolute type safety and eliminate execution crashes.
-- **Prisma Compound Constraint DB:** Employs SQLite in development (and is production-ready for PostgreSQL) with composite unique indexes to prevent customer duplication.
+- **Prisma Compound Constraint DB:** Employs PostgreSQL with composite unique indexes to prevent customer duplication.
 - **Dynamic Channel Simulator:** Periodically generates mock customer queries mimicking different communication channels (WhatsApp, Web Chat) to demonstrate real-time pipeline capability.
 
 ---

@@ -117,11 +117,11 @@ body {
   background: var(--primary);
 }
 
-/* Stripe-Styled Clean Glassmorphism Cards */
+/* Stripe-Styled Clean Glassmorphism Cards - Optimized for performance */
 .glass-panel {
   background: var(--card-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: 20px;
   box-shadow: 
@@ -129,16 +129,18 @@ body {
     0 10px 40px -12px rgba(0, 0, 0, 0.04),
     0 0 1px 0 rgba(0, 0, 0, 0.06);
   padding: 2.25rem;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Hardware acceleration boost to prevent layout recalculation paint lag */
+  transform: translate3d(0, 0, 0);
+  will-change: transform, box-shadow;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
 }
 
 .glass-panel:hover {
   border-color: rgba(15, 23, 42, 0.1);
   box-shadow: 
     0 1px 3px 0 rgba(0, 0, 0, 0.02),
-    0 20px 50px -10px rgba(99, 102, 241, 0.06),
-    0 0 1px 0 rgba(99, 102, 241, 0.12);
-  transform: translateY(-2px);
+    0 15px 35px -10px rgba(99, 102, 241, 0.04);
+  transform: translate3d(0, -2px, 0);
 }
 
 /* Apple-Styled Condensed Header (Highly Clear in Light Mode) */
@@ -352,20 +354,18 @@ body {
   100% { opacity: 0.6; }
 }
 
-/* Ferah Dashboard Grid */
+/* Ferah Dashboard Grid - Single Column Layout for top controls, bottom previews */
 .dashboard-grid {
-  display: grid;
-  grid-template-columns: 410px 1fr;
-  gap: 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
   max-width: 1550px;
-  margin: 3rem auto;
+  margin: 2rem auto;
   padding: 0 2.5rem;
 }
 
 @media (max-width: 1100px) {
   .dashboard-grid {
-    grid-template-columns: 1fr;
-    gap: 2rem;
     padding: 0 1.5rem;
     margin: 1.5rem auto;
   }
@@ -481,4 +481,67 @@ body {
 @keyframes shimmer-anim {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+
+/* Autopilot Queue Completed Hover Styles */
+.autopilot-completed-item:hover {
+  background: rgba(99, 102, 241, 0.08) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.06);
+  transform: translateY(-1px);
+}
+.autopilot-completed-item:active {
+  transform: translateY(0);
+}
+
+/* Premium 24/7 Autopilot Queue Elements */
+.premium-queue-item {
+  transform: translate3d(0, 0, 0);
+  will-change: transform, box-shadow;
+  position: relative;
+}
+
+.premium-queue-item.completed:hover {
+  background: rgba(99, 102, 241, 0.04) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
+  transform: translate3d(0, -2px, 0);
+}
+
+.premium-queue-item.completed:active {
+  transform: translate3d(0, 0, 0) scale(0.98);
+  transition: transform 0.08s ease;
+}
+
+/* Pulsing LED Indicators */
+.pulse-indicator {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  animation: led-pulse 2s infinite;
+}
+
+.pulse-indicator-small {
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  animation: led-pulse-small 1.5s infinite;
+}
+
+@keyframes led-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes led-pulse-small {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+  70% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* Mini CSS Spinner */
+.spinner-mini {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
