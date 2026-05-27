@@ -16,6 +16,18 @@ export interface SEOOutline {
 
 export class GeminiService {
   /**
+   * Helper utility to enforce timeout boundaries on asynchronous operations.
+   */
+  private static async withTimeout<T>(promise: Promise<T>, timeoutMs = 35000): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error('Gemini API request timed out.')), timeoutMs)
+      )
+    ]);
+  }
+
+  /**
    * Analyzes competitor headers/excerpts and maps out a superior SEO optimized outline structure.
    */
   public static async generateSEOOutline(
@@ -75,7 +87,7 @@ export class GeminiService {
     `;
 
     try {
-      const result = await model.generateContent(prompt);
+      const result = await this.withTimeout(model.generateContent(prompt), 35000);
       const responseText = result.response.text();
       const outlineData: SEOOutline = JSON.parse(responseText);
       console.log(`[GeminiService] SEO Outline successfully generated: "${outlineData.suggestedTitle}"`);
@@ -110,7 +122,7 @@ export class GeminiService {
     `;
 
     try {
-      const result = await model.generateContent(prompt);
+      const result = await this.withTimeout(model.generateContent(prompt), 35000);
       return result.response.text().trim();
     } catch (err: any) {
       console.error(`[Researcher Agent] Error: ${err.message}`);
@@ -141,10 +153,10 @@ export class GeminiService {
     `;
 
     try {
-      const result = await model.generateContent({
+      const result = await this.withTimeout(model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: 'application/json' }
-      });
+      }), 35000);
       const data = JSON.parse(result.response.text());
       // For simplified demo purposes, we will return an elegant stock image using their searchQuery
       return `https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1200&auto=format&fit=crop&q=${encodeURIComponent(data.searchQuery || keyword)}`;
@@ -208,7 +220,7 @@ export class GeminiService {
     `;
 
     try {
-      const result = await model.generateContent(prompt);
+      const result = await this.withTimeout(model.generateContent(prompt), 35000);
       let optimized = result.response.text();
       if (optimized.startsWith('```html')) {
         optimized = optimized.replace(/^```html\s*/, '').replace(/\s*```$/, '');
@@ -269,7 +281,7 @@ export class GeminiService {
     `;
 
     try {
-      const result = await model.generateContent(prompt);
+      const result = await this.withTimeout(model.generateContent(prompt), 35000);
       let contentHtml = result.response.text();
       
       // Clean up markdown block wrapping if returned by LLM

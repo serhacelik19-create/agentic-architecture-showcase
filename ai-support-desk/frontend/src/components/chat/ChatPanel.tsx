@@ -14,6 +14,8 @@ interface ChatPanelProps {
   activeTicket: Conversation | null;
   isGenerating: boolean;
   showSimulator: boolean;
+  draftToApply?: string;
+  onDraftApplied?: () => void;
   onToggleSimulator: () => void;
   onSendMessage: (conversationId: string, content: string) => void;
   onResolveTicket: (conversationId: string) => void;
@@ -23,6 +25,8 @@ export default function ChatPanel({
   activeTicket,
   isGenerating,
   showSimulator,
+  draftToApply,
+  onDraftApplied,
   onToggleSimulator,
   onSendMessage,
   onResolveTicket,
@@ -37,6 +41,14 @@ export default function ChatPanel({
       messageLogRef.current.scrollTop = messageLogRef.current.scrollHeight;
     }
   }, [activeTicket?.messages, isGenerating]);
+
+  // Apply draft from CopilotPanel's "Apply to Input" button
+  useEffect(() => {
+    if (draftToApply) {
+      setReplyContent(draftToApply);
+      onDraftApplied?.();
+    }
+  }, [draftToApply, onDraftApplied]);
 
   const handleSend = () => {
     if (!activeTicket || !replyContent.trim()) return;

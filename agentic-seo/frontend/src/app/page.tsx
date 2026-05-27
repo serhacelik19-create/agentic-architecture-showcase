@@ -4,6 +4,19 @@ import React, { useState } from 'react';
 import { HtmlContentBoundary } from './components/HtmlContentBoundary';
 
 // Type Definitions
+interface Domain {
+  id: string;
+  name: string;
+  domainUrl: string;
+  brandTone: string;
+}
+
+interface AutopilotKeyword {
+  id: string;
+  keyword: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
 interface CompetitorHeader {
   tag: string;
   text: string;
@@ -159,6 +172,8 @@ const platformOptions = [
 
 export default function Dashboard() {
   // Local States
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState<string>('');
   const [keyword, setKeyword] = useState('');
   const [limit, setLimit] = useState(3);
   const [size, setSize] = useState<'short' | 'balanced' | 'comprehensive'>('balanced');
@@ -167,8 +182,39 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Premium non-blocking toast notification state
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 5000);
+  };
+
+  // Safe fetch utility with timeout boundary support
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 10000): Promise<Response> => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (err: unknown) {
+      clearTimeout(id);
+      throw err;
+    }
+  };
+
+  // Real-time Progress Tracking States
+  const [progressPercentage, setProgressPercentage] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
+
   // Autopilot Queue States
-  const [autopilotKeywords, setAutopilotKeywords] = useState<{ id: string; keyword: string; status: string }[]>([]);
+  const [autopilotKeywords, setAutopilotKeywords] = useState<AutopilotKeyword[]>([]);
   const [newAutopilotKeyword, setNewAutopilotKeyword] = useState('');
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
@@ -201,15 +247,98 @@ export default function Dashboard() {
   // Fetch autopilot queue
   const fetchAutopilotQueue = async () => {
     try {
-      const res = await fetch('http://localhost:5001/api/autopilot/keywords');
+      const res = await fetchWithTimeout('http://localhost:5001/api/autopilot/keywords', {}, 10000);
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.keywords) {
         setAutopilotKeywords(data.keywords);
       }
-    } catch (e) {
-      console.error("Queue fetch error", e);
+    } catch (err: unknown) {
+      console.error('Failed to fetch queue:', err);
     }
   };
+
+  const fetchDomains = async () => {
+    try {
+      const res = await fetchWithTimeout('http://localhost:5001/api/domains', {}, 10000);
+      const data = await res.json();
+      setDomains(data);
+      if (data.length > 0) setSelectedDomain(data[0].id);
+    } catch (err: unknown) {
+      console.error('Failed to fetch domains:', err);
+      showNotification('Failed to connect to backend domain manager.', 'error');
+    }
+  };
+
+  const startProgressTracking = (keywordTarget: string) => {
+    setKeyword(keywordTarget); // Immediately update keyword focus in UI!
+    setProgressPercentage(0);
+    setProgressMessage('Connecting to real-time updates...');
+    
+    // Close existing event source if any
+    if ((window as any).progressEventSource) {
+      (window as any).progressEventSource.close();
+    }
+    
+    const eventSource = new EventSource('http://localhost:5001/api/progress');
+    (window as any).progressEventSource = eventSource;
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.keyword) {
+          // Dynamically track the active keyword being processed by the backend
+          setKeyword(data.keyword);
+          setProgressPercentage(data.percentage);
+          setProgressMessage(data.message);
+          
+          // Dynamically map SSE step to interactive steps
+          if (data.percentage >= 95) {
+            setCurrentStep(4);
+            setStepStatuses(['completed', 'completed', 'completed', 'running']);
+          } else if (data.percentage >= 65) {
+            setCurrentStep(3);
+            setStepStatuses(['completed', 'completed', 'running', 'pending']);
+          } else if (data.percentage >= 30) {
+            setCurrentStep(2);
+            setStepStatuses(['completed', 'running', 'pending', 'pending']);
+          } else if (data.percentage >= 5) {
+            setCurrentStep(1);
+            setStepStatuses(['running', 'pending', 'pending', 'pending']);
+          }
+          
+          if (data.status === 'completed') {
+            setProgressPercentage(100);
+            setProgressMessage('Completed successfully!');
+            setStepStatuses(['completed', 'completed', 'completed', 'completed']);
+          } else if (data.status === 'failed') {
+            setProgressMessage(`Error: ${data.message}`);
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing SSE event data:', err);
+      }
+    };
+    
+    eventSource.onerror = (err) => {
+      console.error('EventSource failed:', err);
+      eventSource.close();
+    };
+  };
+
+  React.useEffect(() => {
+    fetchAutopilotQueue();
+    fetchDomains();
+
+    // Poll queue every 5 seconds
+    const interval = setInterval(fetchAutopilotQueue, 5000);
+
+    return () => {
+      clearInterval(interval);
+      if ((window as any).progressEventSource) {
+        (window as any).progressEventSource.close();
+      }
+    };
+  }, []);
 
   // Add keyword to autopilot queue
   const addAutopilotKeyword = async (e: React.FormEvent) => {
@@ -217,20 +346,22 @@ export default function Dashboard() {
     if (!newAutopilotKeyword.trim()) return;
 
     try {
-      const res = await fetch('http://localhost:5001/api/autopilot/keywords', {
+      const res = await fetchWithTimeout('http://localhost:5001/api/autopilot/keywords', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: newAutopilotKeyword })
-      });
+      }, 10000);
       const data = await res.json();
       if (data.success) {
         setNewAutopilotKeyword('');
         fetchAutopilotQueue();
+        showNotification(`Keyword "${newAutopilotKeyword}" successfully added to Autopilot queue!`, 'success');
       } else {
-        alert(data.error || "Failed to add keyword.");
+        showNotification(data.error || "Failed to add keyword.", 'error');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Failed to add autopilot keyword", e);
+      showNotification("Network timeout or connection failure while adding keyword.", 'error');
     }
   };
 
@@ -240,36 +371,49 @@ export default function Dashboard() {
     if (!confirm("Are you sure you want to remove this keyword from the Autopilot queue?")) return;
 
     try {
-      const res = await fetch(`http://localhost:5001/api/autopilot/keywords/${id}`, {
+      const res = await fetchWithTimeout(`http://localhost:5001/api/autopilot/keywords/${id}`, {
         method: 'DELETE'
-      });
+      }, 10000);
       const data = await res.json();
       if (data.success) {
         fetchAutopilotQueue();
+        showNotification("Keyword successfully removed from Autopilot queue.", 'success');
       } else {
-        alert(data.error || "Failed to delete keyword.");
+        showNotification(data.error || "Failed to delete keyword.", 'error');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Failed to delete autopilot keyword", e);
+      showNotification("Network timeout or connection failure while deleting keyword.", 'error');
     }
   };
 
   // Trigger Autopilot otonomously
   const triggerAutopilotQueue = async () => {
     setIsProcessingQueue(true);
+    const pending = autopilotKeywords.find(k => k.status === 'pending');
+    if (pending) {
+      startProgressTracking(pending.keyword);
+      // Immediately set its local status to 'processing' in UI so the user sees it instantly
+      setAutopilotKeywords(prev => prev.map(k => k.id === pending.id ? { ...k, status: 'processing' } as AutopilotKeyword : k));
+    }
     try {
-      const res = await fetch('http://localhost:5001/api/autopilot/trigger', {
+      const res = await fetchWithTimeout('http://localhost:5001/api/autopilot/trigger', {
         method: 'POST'
-      });
+      }, 45000); // 45 seconds timeout bounds for full queue analysis
       const data = await res.json();
       if (data.success) {
-        alert(`Autopilot successfully finished processing keyword: "${data.keyword}"! Check your blog CMS.`);
+        showNotification(`Autopilot successfully finished processing keyword: "${data.keyword}"!`, 'success');
         fetchAutopilotQueue();
       } else {
-        alert(data.error || "No pending autopilot keywords found.");
+        showNotification(data.error || "No pending autopilot keywords found.", 'error');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Autopilot execution failed", e);
+      if (e instanceof Error && e.name === 'AbortError') {
+        showNotification("Autopilot request timed out. Processing is continuing in the background.", 'info');
+      } else {
+        showNotification("Network failure during Autopilot run.", 'error');
+      }
     } finally {
       setIsProcessingQueue(false);
     }
@@ -279,29 +423,23 @@ export default function Dashboard() {
   const triggerReflection = async (articleId: string) => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5001/api/autopilot/reflect', {
+      const res = await fetchWithTimeout('http://localhost:5001/api/autopilot/reflect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ articleId, currentRank: 8 }) // simulated low ranking #8
-      });
+      }, 45000); // 45 seconds for complex reflection optimization rewrite
       const data = await res.json();
       if (data.success) {
         setArticleContent(data.article.content);
-        alert(`Reflection Agent active! Article has been autonomously rewritten to outrank competitor benchmarks. Check preview.`);
+        showNotification("Reflection Agent active! Article has been autonomously rewritten to outrank competitors.", 'success');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Reflection error", e);
+      showNotification("Network timeout or connection failure during Reflection optimization.", 'error');
     } finally {
       setLoading(false);
     }
   };
-
-  // React hook to fetch queue on mount
-  React.useEffect(() => {
-    fetchAutopilotQueue();
-  }, []);
-
-
 
   // Helper: Step Status Updater
   const updateStepStatus = (index: number, status: 'pending' | 'running' | 'completed' | 'failed') => {
@@ -312,14 +450,12 @@ export default function Dashboard() {
     });
   };
 
-
-
   // Load completed autopilot article data into active editor dashboard
   const loadAutopilotArticle = async (kw: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:5001/api/article-data?keyword=${encodeURIComponent(kw)}`);
+      const res = await fetchWithTimeout(`http://localhost:5001/api/article-data?keyword=${encodeURIComponent(kw)}`, {}, 15000);
       const data = await res.json();
       if (data.success) {
         setKeyword(kw);
@@ -339,9 +475,9 @@ export default function Dashboard() {
       } else {
         setError(data.error || 'Failed to fetch article details.');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      setError('Connection error while fetching autopilot article data.');
+      setError('Connection timeout or network error while fetching autopilot article data.');
     } finally {
       setLoading(false);
     }
@@ -362,13 +498,22 @@ export default function Dashboard() {
     
     // Reset statuses to defaults
     setStepStatuses(['running', 'pending', 'pending', 'pending']);
+    startProgressTracking(keyword);
 
     try {
-      const response = await fetch('http://localhost:5001/api/analyze', {
+      const domainData = domains.find(d => d.id === selectedDomain);
+      const response = await fetchWithTimeout('http://localhost:5001/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, limit, size, tone })
-      });
+        body: JSON.stringify({ 
+          keyword, 
+          limit, 
+          size, 
+          tone,
+          domainId: selectedDomain,
+          brandTone: domainData ? domainData.brandTone : ''
+        }),
+      }, 45000); // 45 seconds timeout bound for crawler and gap analysis
 
       if (!response.ok) {
         throw new Error('Backend failed during SERP scraping or semantic analysis.');
@@ -385,9 +530,10 @@ export default function Dashboard() {
       
       updateStepStatus(1, 'completed');
       setLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'An unexpected error occurred.');
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      setError(errorMessage);
       updateStepStatus(0, 'failed');
       updateStepStatus(1, 'failed');
       setLoading(false);
@@ -402,13 +548,14 @@ export default function Dashboard() {
     setError(null);
     setCurrentStep(3);
     updateStepStatus(2, 'running');
+    startProgressTracking(keyword);
 
     try {
-      const response = await fetch('http://localhost:5001/api/generate-article', {
+      const response = await fetchWithTimeout('http://localhost:5001/api/generate-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword, outline, competitors, tone })
-      });
+      }, 45000); // 45 seconds for writing comprehensive copy
 
       if (!response.ok) {
         throw new Error('Backend failed during autonomous article generation.');
@@ -419,9 +566,10 @@ export default function Dashboard() {
       
       updateStepStatus(2, 'completed');
       setLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Failed to generate article.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate article.';
+      setError(errorMessage);
       updateStepStatus(2, 'failed');
       setLoading(false);
     }
@@ -437,21 +585,22 @@ export default function Dashboard() {
     updateStepStatus(3, 'running');
 
     try {
-      const response = await fetch('http://localhost:5001/api/publish', {
+      const res = await fetchWithTimeout('http://localhost:5001/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: outline.suggestedTitle,
-          content: articleContent,
-          platform: selectedPlatform
-        })
-      });
+        body: JSON.stringify({ 
+          title: outline?.suggestedTitle || keyword, 
+          content: articleContent, 
+          platform: selectedPlatform,
+          domainId: selectedDomain
+        }),
+      }, 15000); // 15 seconds to publish to WordPress/Webflow webhook
 
-      if (!response.ok) {
+      if (!res.ok) {
         throw new Error('Backend failed during CMS publishing integration.');
       }
 
-      const data = await response.json();
+      const data = await res.json();
       setPublishResult(data);
       
       if (data.success) {
@@ -460,9 +609,10 @@ export default function Dashboard() {
         updateStepStatus(3, 'failed');
       }
       setLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Failed to publish content.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to publish content.';
+      setError(errorMessage);
       updateStepStatus(3, 'failed');
       setLoading(false);
     }
@@ -616,6 +766,47 @@ export default function Dashboard() {
   return (
     <div style={{ paddingBottom: '6rem', position: 'relative' }}>
       
+      {/* Premium modern non-blocking notification toast */}
+      {notification && (
+        <div 
+          className="toast-slide-in"
+          style={{
+            position: 'fixed',
+            bottom: '2rem',
+            right: '2rem',
+            background: notification.type === 'success' ? '#10b981' : notification.type === 'error' ? '#ef4444' : 'var(--primary)',
+            color: '#ffffff',
+            padding: '1rem 1.5rem',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.15)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}
+        >
+          <span>{notification.type === 'success' ? '✓' : notification.type === 'error' ? '⚠️' : 'ℹ️'}</span>
+          <span>{notification.message}</span>
+          <button 
+            onClick={() => setNotification(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#ffffff',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              marginLeft: '0.5rem',
+              opacity: 0.8
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Background drifting glow orbs */}
       <div className="glow-orb glow-orb-primary"></div>
       <div className="glow-orb glow-orb-secondary"></div>
@@ -645,8 +836,142 @@ export default function Dashboard() {
 
       {/* Primary dashboard container */}
       <div className="dashboard-grid">
-        
-        {/* Horizontal Controls Container (Autopilot Settings + 24/7 Queue + Status Engine side by side) */}
+
+        {/* AI Agent real-time progress engine (Horizontal Stepper at the very top of Dashboard) */}
+        <section className="glass-panel" style={{ 
+          padding: '1.25rem 2rem', 
+          width: '100%', 
+          position: 'relative', 
+          zIndex: 10,
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid var(--border)',
+          borderRadius: '16px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
+              ⚡ Real-Time Content Pipeline Status {keyword ? `for "${keyword}"` : ''}
+            </h2>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+              Active Step: {currentStep === 0 ? 'Idle' : `${currentStep} / 4`}
+            </span>
+          </div>
+
+          {progressPercentage > 0 && (
+            <div style={{ marginBottom: '1.25rem', width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+                <span>{progressMessage || 'İşlem devam ediyor...'}</span>
+                <span>{progressPercentage}%</span>
+              </div>
+              <div style={{ width: '100%', height: '6px', background: 'rgba(15, 23, 42, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div 
+                  style={{ 
+                    width: `${progressPercentage}%`, 
+                    height: '100%', 
+                    background: 'linear-gradient(90deg, var(--primary), var(--secondary))',
+                    borderRadius: '3px',
+                    boxShadow: '0 0 8px var(--primary)',
+                    transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
+                  }} 
+                />
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between', gap: '0.75rem', position: 'relative', flexWrap: 'wrap' }}>
+            {steps.map((step, idx) => {
+              const isCompleted = stepStatuses[idx] === 'completed';
+              const isActive = currentStep === idx + 1;
+              const isPending = stepStatuses[idx] === 'pending';
+              const isFailed = stepStatuses[idx] === 'failed';
+
+              let statusColor = 'var(--text-muted)';
+              let statusBg = 'rgba(148, 163, 184, 0.04)';
+              let statusBorder = 'var(--border)';
+
+              if (isActive) {
+                statusColor = 'var(--primary)';
+                statusBg = 'var(--primary-glow)';
+                statusBorder = 'rgba(99, 102, 241, 0.3)';
+              } else if (isCompleted) {
+                statusColor = 'var(--success)';
+                statusBg = 'rgba(16, 185, 129, 0.05)';
+                statusBorder = 'rgba(16, 185, 129, 0.2)';
+              } else if (isFailed) {
+                statusColor = 'var(--error)';
+                statusBg = 'rgba(239, 68, 68, 0.05)';
+                statusBorder = 'rgba(239, 68, 68, 0.2)';
+              }
+
+              return (
+                <React.Fragment key={idx}>
+                  {/* Step Card */}
+                  <div 
+                    style={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '0.6rem 1rem', 
+                      borderRadius: '12px', 
+                      background: statusBg,
+                      border: `1px solid ${statusBorder}`,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      flex: '1 1 200px',
+                      minWidth: '200px',
+                      boxShadow: isActive ? '0 4px 12px rgba(99, 102, 241, 0.06)' : 'none',
+                      transform: isActive ? 'translateY(-2px)' : 'none'
+                    }}
+                  >
+                    <div style={{ 
+                      width: '28px', 
+                      height: '28px', 
+                      borderRadius: '50%',
+                      background: isActive ? 'var(--primary)' : isCompleted ? 'var(--success)' : isFailed ? 'var(--error)' : 'rgba(148, 163, 184, 0.1)',
+                      color: isActive || isCompleted || isFailed ? '#ffffff' : 'var(--text-secondary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      transition: 'all 0.3s ease',
+                      flexShrink: 0
+                    }}>
+                      {isCompleted ? '✓' : isFailed ? '✗' : idx + 1}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span style={{ 
+                        fontSize: '0.825rem', 
+                        fontWeight: isActive || isCompleted ? 700 : 500, 
+                        color: isActive ? 'var(--primary)' : isCompleted ? 'var(--success)' : 'var(--text-primary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {step.title}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {isActive ? 'Processing...' : isCompleted ? 'Done' : isFailed ? 'Error' : 'Waiting'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Stepper Connector (Line) */}
+                  {idx < 3 && (
+                    <div style={{ 
+                      height: '2px', 
+                      flex: '0 1 20px', 
+                      background: isCompleted ? 'var(--success)' : 'var(--border)',
+                      minWidth: '10px',
+                      display: 'block'
+                    }} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Horizontal Controls Container (Autopilot Settings + 24/7 Queue side by side) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', width: '100%', position: 'relative', zIndex: 10 }}>
           
           {/* Autopilot Settings */}
@@ -670,6 +995,16 @@ export default function Dashboard() {
               </div>
 
               {/* Stack custom select grids horizontally */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', overflow: 'visible', position: 'relative', zIndex: 40 }}>
+                <CustomSelect 
+                  label="Target Domain"
+                  value={selectedDomain}
+                  options={domains.map(d => ({ label: d.name, value: d.id }))}
+                  onChange={setSelectedDomain}
+                  disabled={loading || domains.length === 0}
+                />
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', overflow: 'visible', position: 'relative', zIndex: 30 }}>
                 <CustomSelect 
                   label="Word Count"
@@ -713,21 +1048,60 @@ export default function Dashboard() {
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
                 ⏳ 24/7 Autopilot Queue
               </h2>
-              <span style={{ 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                gap: '0.4rem', 
-                fontSize: '0.72rem', 
-                fontWeight: 700, 
-                color: 'var(--success)', 
-                background: 'rgba(16, 185, 129, 0.08)', 
-                padding: '0.2rem 0.6rem', 
-                borderRadius: '20px', 
-                border: '1px solid rgba(16, 185, 129, 0.15)' 
-              }}>
-                <span className="pulse-indicator" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }}></span>
-                Active
-              </span>
+              {(() => {
+                const isProcessing = isProcessingQueue || autopilotKeywords.some(k => k.status === 'processing');
+                const hasKeywords = autopilotKeywords.length > 0;
+                
+                let label = 'Empty';
+                let color = 'var(--text-secondary)';
+                let bg = 'rgba(148, 163, 184, 0.08)';
+                let border = '1px solid rgba(148, 163, 184, 0.15)';
+                let dotColor = 'var(--text-muted)';
+                let isPulse = false;
+
+                if (isProcessing) {
+                  label = 'Processing';
+                  color = 'var(--success)';
+                  bg = 'rgba(16, 185, 129, 0.08)';
+                  border = '1px solid rgba(16, 185, 129, 0.15)';
+                  dotColor = 'var(--success)';
+                  isPulse = true;
+                } else if (hasKeywords) {
+                  label = 'Idle';
+                  color = 'var(--warning)';
+                  bg = 'rgba(245, 158, 11, 0.08)';
+                  border = '1px solid rgba(245, 158, 11, 0.15)';
+                  dotColor = 'var(--warning)';
+                }
+
+                return (
+                  <span style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '0.4rem', 
+                    fontSize: '0.72rem', 
+                    fontWeight: 700, 
+                    color: color, 
+                    background: bg, 
+                    padding: '0.2rem 0.6rem', 
+                    borderRadius: '20px', 
+                    border: border,
+                    transition: 'all 0.3s ease'
+                  }}>
+                    <span 
+                      className={isPulse ? "pulse-indicator" : ""} 
+                      style={{ 
+                        width: '6px', 
+                        height: '6px', 
+                        borderRadius: '50%', 
+                        background: dotColor, 
+                        display: 'inline-block' 
+                      }}
+                    ></span>
+                    {label}
+                  </span>
+                );
+              })()}
             </div>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', opacity: 0.8, marginBottom: '1.1rem' }}>
               Add target keywords for real-time background processing.
@@ -790,21 +1164,29 @@ export default function Dashboard() {
                   return (
                     <div 
                       key={item.id} 
-                      onClick={() => isCompleted && loadAutopilotArticle(item.keyword)}
-                      title={isCompleted ? "Click to load generated article into active Editor Dashboard" : undefined}
+                      onClick={() => {
+                        if (isCompleted) {
+                          loadAutopilotArticle(item.keyword);
+                        } else {
+                          startProgressTracking(item.keyword);
+                        }
+                      }}
+                      title={isCompleted ? "Click to load generated article into active Editor Dashboard" : "Click to focus and view real-time progress"}
                       style={{ 
                         display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center', 
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                        justifyContent: 'center', 
                         background: isCompleted ? 'rgba(99, 102, 241, 0.02)' : isProcessing ? 'rgba(245, 158, 11, 0.02)' : '#ffffff', 
-                        padding: '0.55rem 0.75rem', 
+                        padding: '0.65rem 0.85rem', 
                         borderRadius: '12px', 
                         border: isCompleted ? '1px solid rgba(99, 102, 241, 0.15)' : isProcessing ? '1px solid rgba(245, 158, 11, 0.15)' : '1px solid var(--border)', 
                         fontSize: '0.825rem',
-                        cursor: isCompleted ? 'pointer' : 'default',
+                        cursor: 'pointer',
                         transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                         position: 'relative',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        gap: isProcessing ? '0.4rem' : '0'
                       }}
                       className={isCompleted ? "premium-queue-item completed" : "premium-queue-item"}
                     >
@@ -819,67 +1201,93 @@ export default function Dashboard() {
                         opacity: 0.85
                       }} />
 
-                      <span style={{ 
-                        fontWeight: 600, 
-                        color: 'var(--text-primary)', 
-                        whiteSpace: 'nowrap', 
-                        overflow: 'hidden', 
-                        textOverflow: 'ellipsis', 
-                        maxWidth: '170px',
-                        paddingLeft: '0.35rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.4rem'
-                      }} title={item.keyword}>
-                        {isCompleted ? '📖' : isProcessing ? '⚙️' : '⏳'} {item.keyword}
-                      </span>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', zIndex: 10 }}>
+                      {/* Main Item Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                         <span style={{ 
-                          fontSize: '0.68rem', 
-                          padding: '0.15rem 0.45rem', 
-                          borderRadius: '20px', 
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.02em',
-                          background: isCompleted ? 'rgba(16,185,129,0.08)' : isProcessing ? 'rgba(245,158,11,0.08)' : 'rgba(148,163,184,0.08)',
-                          color: isCompleted ? 'var(--success)' : isProcessing ? 'var(--warning)' : 'var(--text-muted)',
+                          fontWeight: 600, 
+                          color: 'var(--text-primary)', 
+                          whiteSpace: 'nowrap', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          maxWidth: '170px',
+                          paddingLeft: '0.35rem',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.25rem'
-                        }}>
-                          {isProcessing && <span className="pulse-indicator-small" style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--warning)', display: 'inline-block' }}></span>}
-                          {item.status}
+                          gap: '0.4rem'
+                        }} title={item.keyword}>
+                          {isCompleted ? '📖' : isProcessing ? '⚙️' : '⏳'} {item.keyword}
                         </span>
 
-                        <button
-                          onClick={(e) => deleteAutopilotKeyword(e, item.id)}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '0.85rem',
-                            padding: '0.2rem',
-                            borderRadius: '6px',
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', zIndex: 10 }}>
+                          <span style={{ 
+                            fontSize: '0.68rem', 
+                            padding: '0.15rem 0.45rem', 
+                            borderRadius: '20px', 
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.02em',
+                            background: isCompleted ? 'rgba(16,185,129,0.08)' : isProcessing ? 'rgba(245,158,11,0.08)' : 'rgba(148,163,184,0.08)',
+                            color: isCompleted ? 'var(--success)' : isProcessing ? 'var(--warning)' : 'var(--text-muted)',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s ease',
-                            opacity: 0.5
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.opacity = '1';
-                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.opacity = '0.5';
-                            e.currentTarget.style.background = 'transparent';
-                          }}
-                          title="Delete keyword from queue"
-                        >
-                          🗑️
-                        </button>
+                            gap: '0.25rem'
+                          }}>
+                            {isProcessing && <span className="pulse-indicator-small" style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--warning)', display: 'inline-block' }}></span>}
+                            {item.status}
+                          </span>
+
+                          <button
+                            onClick={(e) => deleteAutopilotKeyword(e, item.id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              padding: '0.2rem',
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease',
+                              opacity: 0.5
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.opacity = '1';
+                              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.opacity = '0.5';
+                              e.currentTarget.style.background = 'transparent';
+                            }}
+                            title="Delete keyword from queue"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Card-Level Progress Section (visible when processing) */}
+                      {isProcessing && progressPercentage > 0 && (
+                        <div style={{ paddingLeft: '0.35rem', width: '100%', animation: 'fadeIn 0.3s ease-out' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.2rem', fontWeight: 600 }}>
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} title={progressMessage}>
+                              {progressMessage || 'Processing queue item...'}
+                            </span>
+                            <span>{progressPercentage}%</span>
+                          </div>
+                          <div style={{ width: '100%', height: '4px', background: 'rgba(15, 23, 42, 0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div 
+                              style={{ 
+                                width: `${progressPercentage}%`, 
+                                height: '100%', 
+                                background: 'linear-gradient(90deg, var(--warning), var(--secondary))',
+                                borderRadius: '2px',
+                                transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
+                              }} 
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -912,37 +1320,6 @@ export default function Dashboard() {
                 </div>
               ) : '⚡ Trigger Autopilot Run'}
             </button>
-          </section>
-
-          {/* AI Agent real-time progress engine */}
-          <section className="glass-panel" style={{ padding: '1.75rem' }}>
-            <h2 style={{ fontSize: '1.25rem', marginBottom: '0.35rem', fontWeight: 800, letterSpacing: '-0.01em' }}>⚡ AI Agent Status Engine</h2>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', opacity: 0.8, marginBottom: '0.85rem' }}>
-              Real-time content pipeline progress:
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              {steps.map((step, idx) => (
-                <div 
-                  key={idx} 
-                  className={`step-card ${currentStep === idx + 1 ? 'active' : ''} ${stepStatuses[idx] === 'completed' ? 'completed' : ''}`}
-                  style={{ padding: '0.65rem 0.85rem', borderRadius: '12px', gap: '0.65rem' }}
-                >
-                  <div className="step-number" style={{ width: '26px', height: '26px', fontSize: '0.8rem' }}>
-                    {stepStatuses[idx] === 'completed' ? '✓' : idx + 1}
-                  </div>
-                  <div className="step-info">
-                    <div className="step-title" style={{ fontSize: '0.825rem' }}>{step.title}</div>
-                  </div>
-                  <span className={`step-badge badge-${stepStatuses[idx]}`} style={{ fontSize: '0.65rem', padding: '0.2rem 0.4rem' }}>
-                    {stepStatuses[idx] === 'pending' && 'Idle'}
-                    {stepStatuses[idx] === 'running' && 'Active'}
-                    {stepStatuses[idx] === 'completed' && 'Done'}
-                    {stepStatuses[idx] === 'failed' && 'Error'}
-                  </span>
-                </div>
-              ))}
-            </div>
           </section>
 
         </div>

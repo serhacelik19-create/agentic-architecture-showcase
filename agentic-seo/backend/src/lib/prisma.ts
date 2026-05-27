@@ -10,7 +10,8 @@ class MockPrisma {
     competitorAnalysis: [],
     outline: [],
     article: [],
-    autopilotKeyword: []
+    autopilotKeyword: [],
+    domain: []
   };
 
   constructor() {
@@ -102,16 +103,47 @@ class MockPrisma {
       return data;
     },
     findFirst: async (args?: any) => {
+      let art = null;
       if (args?.where?.title) {
-        return this.getTable('article').find(x => x.title === args.where.title) || null;
+        art = this.getTable('article').find(x => x.title === args.where.title) || null;
+      } else if (args?.where?.keyword) {
+        art = this.getTable('article').find(x => x.keyword === args.where.keyword) || null;
+      } else {
+        art = this.getTable('article')[0] || null;
       }
-      if (args?.where?.keyword) {
-        return this.getTable('article').find(x => x.keyword === args.where.keyword) || null;
+      if (art && args?.include?.domain) {
+        const domain = this.getTable('domain').find(d => d.id === art.domainId) || null;
+        return { ...art, domain };
       }
-      return this.getTable('article')[0] || null;
+      return art;
+    },
+    findUnique: async (args?: any) => {
+      const table = this.getTable('article');
+      const art = table.find(x => x.id === args?.where?.id || x.keyword === args?.where?.keyword) || null;
+      if (art && args?.include?.domain) {
+        const domain = this.getTable('domain').find(d => d.id === art.domainId) || null;
+        return { ...art, domain };
+      }
+      return art;
     },
     findMany: async (args?: any) => {
-      return this.getTable('article');
+      let list = this.getTable('article');
+      if (args?.where) {
+        if (args.where.status) {
+          list = list.filter(x => x.status === args.where.status);
+        }
+        if (args.where.domainId) {
+          list = list.filter(x => x.domainId === args.where.domainId);
+        }
+      }
+      if (args?.include?.domain) {
+        const domains = this.getTable('domain');
+        list = list.map(art => ({
+          ...art,
+          domain: domains.find(d => d.id === art.domainId) || null
+        }));
+      }
+      return list;
     },
     update: async (args: any) => {
       const table = this.getTable('article');
@@ -156,6 +188,52 @@ class MockPrisma {
     delete: async (args: any) => {
       const table = this.getTable('autopilotKeyword');
       const idx = table.findIndex(x => x.id === args.where.id || x.keyword === args.where.keyword);
+      if (idx > -1) {
+        const deleted = table.splice(idx, 1)[0];
+        this.save();
+        return deleted;
+      }
+      return null;
+    }
+  };
+
+  domain = {
+    findMany: async (args?: any) => {
+      let list = this.getTable('domain');
+      if (args?.orderBy?.createdAt === 'desc') {
+        list = [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+      return list;
+    },
+    findUnique: async (args?: any) => {
+      if (args?.where?.id) {
+        return this.getTable('domain').find(x => x.id === args.where.id) || null;
+      }
+      if (args?.where?.domainUrl) {
+        return this.getTable('domain').find(x => x.domainUrl === args.where.domainUrl) || null;
+      }
+      return null;
+    },
+    create: async (args: any) => {
+      const table = this.getTable('domain');
+      if (table.some(x => x.domainUrl === args.data.domainUrl)) {
+        const err = new Error('Domain already exists');
+        (err as any).code = 'P2002';
+        throw err;
+      }
+      const data = { 
+        id: Math.random().toString(), 
+        ...args.data, 
+        createdAt: new Date().toISOString(), 
+        updatedAt: new Date().toISOString() 
+      };
+      table.push(data);
+      this.save();
+      return data;
+    },
+    delete: async (args: any) => {
+      const table = this.getTable('domain');
+      const idx = table.findIndex(x => x.id === args.where.id);
       if (idx > -1) {
         const deleted = table.splice(idx, 1)[0];
         this.save();
@@ -212,6 +290,7 @@ class SafePrismaClient {
       upsert: (args: any) => this.execute('article', 'upsert', args),
       findFirst: (args?: any) => this.execute('article', 'findFirst', args),
       findMany: (args?: any) => this.execute('article', 'findMany', args),
+      findUnique: (args?: any) => this.execute('article', 'findUnique', args),
       update: (args: any) => this.execute('article', 'update', args),
     };
   }
@@ -223,6 +302,15 @@ class SafePrismaClient {
       create: (args: any) => this.execute('autopilotKeyword', 'create', args),
       update: (args: any) => this.execute('autopilotKeyword', 'update', args),
       delete: (args: any) => this.execute('autopilotKeyword', 'delete', args),
+    };
+  }
+
+  get domain() {
+    return {
+      findMany: (args?: any) => this.execute('domain', 'findMany', args),
+      findUnique: (args?: any) => this.execute('domain', 'findUnique', args),
+      create: (args: any) => this.execute('domain', 'create', args),
+      delete: (args: any) => this.execute('domain', 'delete', args),
     };
   }
 }

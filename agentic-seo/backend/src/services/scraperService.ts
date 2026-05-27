@@ -16,19 +16,39 @@ export class ScraperService {
   public static async scrapeCompetitors(keyword: string, limit: number = 3): Promise<ScrapedArticle[]> {
     console.log(`[ScraperService] Launching browser. Keyword: "${keyword}"`);
     
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
+    const browserlessUrl = process.env.BROWSERLESS_URL;
+    const proxyServer = process.env.PROXY_SERVER;
+    const proxyUsername = process.env.PROXY_USERNAME;
+    const proxyPassword = process.env.PROXY_PASSWORD;
+
+    let browser;
+    if (browserlessUrl) {
+      console.log(`[ScraperService] Connecting to Browserless.io: ${browserlessUrl}`);
+      browser = await puppeteer.connect({ browserWSEndpoint: browserlessUrl });
+    } else {
+      console.log('[ScraperService] Launching local Puppeteer browser.');
+      const args = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
         '--window-size=1920,1080'
-      ]
-    });
+      ];
+      if (proxyServer) {
+        console.log(`[ScraperService] Configuring rotating proxy: ${proxyServer}`);
+        args.push(`--proxy-server=${proxyServer}`);
+      }
+      browser = await puppeteer.launch({
+        headless: true,
+        args
+      });
+    }
 
     const page = await browser.newPage();
+    if (proxyUsername && proxyPassword) {
+      await page.authenticate({ username: proxyUsername, password: proxyPassword });
+    }
     // Use modern user-agent to bypass basic bot detections
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1920, height: 1080 });
@@ -71,6 +91,9 @@ export class ScraperService {
       for (const target of targets) {
         console.log(`[ScraperService] Scraping page: ${target.url}`);
         const competitorPage = await browser.newPage();
+        if (proxyUsername && proxyPassword) {
+          await competitorPage.authenticate({ username: proxyUsername, password: proxyPassword });
+        }
         await competitorPage.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         
         try {

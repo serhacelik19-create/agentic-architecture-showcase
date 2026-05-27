@@ -5,6 +5,10 @@ import { ScraperService } from './services/scraperService';
 import { GeminiService } from './services/geminiService';
 import { PublishService } from './services/publishService';
 import { prisma } from './lib/prisma';
+import { progressEmitter } from './lib/progressEmitter';
+import domainRoutes from './routes/domainRoutes';
+import { GSCService } from './services/gscService';
+import { validateAnalyze, validateAddKeyword, validatePublish } from './middleware/validation';
 
 dotenv.config();
 
@@ -22,23 +26,43 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'Agentic SEO & Content Autopilot backend is active.' });
 });
 
+// SSE endpoint for real-time progress tracking
+app.get('/api/progress', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const onProgress = (update: any) => {
+    res.write(`data: ${JSON.stringify(update)}\n\n`);
+  };
+
+  progressEmitter.on('progress', onProgress);
+
+  req.on('close', () => {
+    progressEmitter.off('progress', onProgress);
+    res.end();
+  });
+});
+
+// Register Domain Routes
+app.use('/api/domains', domainRoutes);
+
 /**
  * Step 1 & 2: Scrapes Google search results for a keyword and generates a premium SEO Outline using Gemini 3.5 Flash.
  */
-app.post('/api/analyze', async (req: Request, res: Response) => {
+app.post('/api/analyze', validateAnalyze, async (req: Request, res: Response) => {
   const { keyword, limit, size, tone } = req.body;
-
-  if (!keyword || typeof keyword !== 'string' || keyword.trim() === '') {
-    return res.status(400).json({ error: 'Invalid or missing "keyword" parameter.' });
-  }
 
   try {
     console.log(`\n[API] Starting analysis pipeline for keyword: "${keyword}"`);
+    progressEmitter.emitProgress({ keyword, step: 1, totalSteps: 2, percentage: 10, message: 'Google SERP crawling and competitor analysis started...', status: 'processing' });
     
     // 1. Google SERP crawling
     const competitors = await ScraperService.scrapeCompetitors(keyword, limit || 3);
 
     // 2. SEO Outline generation
+    progressEmitter.emitProgress({ keyword, step: 2, totalSteps: 2, percentage: 50, message: 'Analyzing competitors and strategizing outline using Gemini AI...', status: 'processing' });
     const outline = await GeminiService.generateSEOOutline(keyword, competitors, size, tone);
 
     // Save to PostgreSQL DB
@@ -58,6 +82,8 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       console.error(`[DB] Error saving analysis: ${dbError.message}`);
     }
 
+    progressEmitter.emitProgress({ keyword, step: 2, totalSteps: 2, percentage: 100, message: 'Outline successfully generated!', status: 'completed' });
+
     res.json({
       success: true,
       keyword,
@@ -66,6 +92,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error(`[API] Error during analysis pipeline: ${error.message}`);
+    progressEmitter.emitProgress({ keyword, step: 2, totalSteps: 2, percentage: 100, message: 'Analysis failed: ' + error.message, status: 'failed' });
     res.status(500).json({ error: 'Analysis pipeline failed.', details: error.message });
   }
 });
@@ -82,6 +109,7 @@ app.post('/api/generate-article', async (req: Request, res: Response) => {
 
   try {
     console.log(`\n[API] Launching article generator. Headline: "${outline.suggestedTitle}"`);
+    progressEmitter.emitProgress({ keyword, step: 1, totalSteps: 1, percentage: 20, message: 'Writing comprehensive blog article draft with Gemini Editor Agent...', status: 'processing' });
     
     const content = await GeminiService.generateFullArticle(keyword, outline, competitors, tone);
 
@@ -108,12 +136,15 @@ app.post('/api/generate-article', async (req: Request, res: Response) => {
       console.error(`[DB] Error saving article: ${dbError.message}`);
     }
 
+    progressEmitter.emitProgress({ keyword, step: 1, totalSteps: 1, percentage: 100, message: 'Article draft successfully written!', status: 'completed' });
+
     res.json({
       success: true,
       content
     });
   } catch (error: any) {
     console.error(`[API] Error during article generation: ${error.message}`);
+    progressEmitter.emitProgress({ keyword, step: 1, totalSteps: 1, percentage: 100, message: 'Article writing failed: ' + error.message, status: 'failed' });
     res.status(500).json({ error: 'Article generation failed.', details: error.message });
   }
 });
@@ -126,13 +157,52 @@ app.post('/api/generate-article', async (req: Request, res: Response) => {
 app.get('/api/published-articles', async (req: Request, res: Response) => {
   try {
     const includeDrafts = req.query.includeDrafts === 'true';
+    const domainId = req.query.domainId as string | undefined;
+    
+    const whereClause: any = includeDrafts ? {} : { status: 'published' };
+    if (domainId) {
+      whereClause.domainId = domainId;
+    }
+
     const list = await prisma.article.findMany({
-      where: includeDrafts ? {} : { status: 'published' },
+      where: whereClause,
+      include: { domain: true },
       orderBy: { updatedAt: 'desc' }
     });
     res.json({ success: true, articles: list });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to fetch published articles.', details: error.message });
+  }
+});
+
+/**
+ * API Endpoint: Update Google Rank via GSC
+ */
+app.post('/api/article-rank/update', async (req: Request, res: Response) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'Missing article id.' });
+  
+  try {
+    const article = await prisma.article.findUnique({
+      where: { id },
+      include: { domain: true }
+    });
+    if (!article) return res.status(404).json({ error: 'Article not found.' });
+    if (!article.domain) return res.status(400).json({ error: 'Article has no associated domain.' });
+    
+    const rank = await GSCService.getKeywordRank(article.domain.domainUrl, article.keyword);
+    
+    const updated = await prisma.article.update({
+      where: { id },
+      data: { 
+        googleRank: rank,
+        lastCheckedAt: new Date()
+      }
+    });
+    
+    res.json({ success: true, article: updated });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -189,12 +259,8 @@ app.get('/api/article-data', async (req: Request, res: Response) => {
 /**
  * Step 4: Publishes the generated article on the selected CMS/Webhook platform.
  */
-app.post('/api/publish', async (req: Request, res: Response) => {
+app.post('/api/publish', validatePublish, async (req: Request, res: Response) => {
   const { title, content, platform } = req.body;
-
-  if (!title || !content || !platform) {
-    return res.status(400).json({ error: 'Missing parameters. "title", "content", and "platform" are required.' });
-  }
 
   try {
     console.log(`\n[API] Received publish request. Target Platform: ${platform}`);
@@ -251,11 +317,8 @@ app.get('/api/autopilot/keywords', async (req: Request, res: Response) => {
 /**
  * Autopilot Endpoint: Add new keyword to the autopilot pipeline.
  */
-app.post('/api/autopilot/keywords', async (req: Request, res: Response) => {
+app.post('/api/autopilot/keywords', validateAddKeyword, async (req: Request, res: Response) => {
   const { keyword } = req.body;
-  if (!keyword || typeof keyword !== 'string' || keyword.trim() === '') {
-    return res.status(400).json({ error: 'Invalid or missing "keyword" parameter.' });
-  }
 
   try {
     const existing = await prisma.autopilotKeyword.findUnique({

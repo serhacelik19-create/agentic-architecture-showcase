@@ -26,7 +26,10 @@ export function useSocket(): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const socket = io(BACKEND_URL);
+    const token = process.env.NEXT_PUBLIC_API_AUTH_TOKEN || "demo-auth-token-123";
+    const socket = io(BACKEND_URL, {
+      auth: { token },
+    });
     socketRef.current = socket;
 
     socket.on("connect", () => {

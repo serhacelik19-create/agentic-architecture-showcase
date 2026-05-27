@@ -66,6 +66,8 @@ export default function DashboardPage() {
         activeTicket={activeTicket}
         isGenerating={isGenerating}
         showSimulator={showSimulator}
+        draftToApply={replyFromDraft}
+        onDraftApplied={() => setReplyFromDraft("")}
         onToggleSimulator={() => setShowSimulator(!showSimulator)}
         onSendMessage={sendMessage}
         onResolveTicket={resolveTicket}

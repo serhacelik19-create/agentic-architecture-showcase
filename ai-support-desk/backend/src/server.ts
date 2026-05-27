@@ -23,13 +23,28 @@ const port = process.env.PORT || 5002;
 app.use(cors());
 app.use(express.json());
 
+const authMiddleware = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+  const expectedToken = process.env.API_AUTH_TOKEN || "demo-auth-token-123";
+  if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+};
+
+
 // API Health Check
 app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", service: "ai-support-desk-backend", time: new Date() });
 });
 
 // Analytics endpoint — returns real calculated metrics from the database
-app.get("/api/analytics", async (req, res) => {
+app.get("/api/analytics", authMiddleware, async (req, res) => {
   try {
     const [totalConversations, openCount, resolvedCount, totalMessages] = await Promise.all([
       prisma.conversation.count(),
@@ -87,7 +102,7 @@ app.get("/api/analytics", async (req, res) => {
 });
 
 // REST endpoint to trigger simulator
-app.post("/api/simulator/trigger", async (req, res) => {
+app.post("/api/simulator/trigger", authMiddleware, async (req, res) => {
   const ticket = await triggerSimulatedTicket(io);
   if (ticket) {
     res.json({ success: true, ticket });
@@ -105,6 +120,17 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  const expectedToken = process.env.API_AUTH_TOKEN || "demo-auth-token-123";
+  if (token === expectedToken) {
+    next();
+  } else {
+    next(new Error("Authentication error"));
+  }
+});
+
 
 io.on("connection", (socket) => {
   console.log(`[WebSocket] Agent connected: ${socket.id}`);

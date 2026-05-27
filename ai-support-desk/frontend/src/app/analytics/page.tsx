@@ -24,12 +24,40 @@ interface AnalyticsStats {
 
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<AnalyticsStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/analytics`)
-      .then((res) => res.json())
-      .then((data) => setStats(data))
-      .catch(() => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    setLoading(true);
+    setErrorMsg(null);
+
+    const token = process.env.NEXT_PUBLIC_API_AUTH_TOKEN || "demo-auth-token-123";
+    fetch(`${BACKEND_URL}/api/analytics`, {
+      signal: controller.signal,
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! Status: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") {
+          setErrorMsg("Request timed out (5s)");
+        } else {
+          setErrorMsg("Failed to connect to backend analytics server");
+        }
+        console.error("Analytics fetch error:", err);
         // Fallback mock data if backend analytics endpoint isn't ready
         setStats({
           totalConversations: 24,
@@ -39,10 +67,19 @@ export default function AnalyticsPage() {
           avgResponseTime: 12,
           channelDistribution: { whatsapp: 14, web: 10 },
         });
+        setLoading(false);
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
       });
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
-  if (!stats) {
+  if (loading || !stats) {
     return (
       <div className="analytics-page">
         <div className="analytics-page-header">
@@ -70,6 +107,23 @@ export default function AnalyticsPage() {
           <p className="analytics-page-subtitle">Real-time performance metrics from your support operations</p>
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="analytics-error-banner" style={{
+          padding: "0.75rem 1rem",
+          marginBottom: "1.5rem",
+          borderRadius: "0.5rem",
+          background: "rgba(239, 68, 68, 0.1)",
+          border: "1px solid rgba(239, 68, 68, 0.2)",
+          color: "#ef4444",
+          fontSize: "0.875rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem"
+        }}>
+          <span>⚠️ {errorMsg}. Showing fallback mock data.</span>
+        </div>
+      )}
 
       {/* KPI Cards Row */}
       <div className="analytics-kpi-grid">
