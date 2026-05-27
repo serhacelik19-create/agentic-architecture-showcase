@@ -56,6 +56,8 @@ The codebase is structured strictly following clean architecture principles, emp
 * **[geminiService.ts](backend/src/services/geminiService.ts):** Showcases advanced prompt engineering, custom instructions based on tone parameters, and structured JSON parsing boundaries.
 * **[validation.ts](backend/src/lib/validation.ts):** Demonstrates backend hardening via strict Zod input validation schemas for real-time WebSocket payloads.
 * **[channelSimulator.ts](backend/src/services/channelSimulator.ts):** Features automated background task runners using a robust `findOrCreateCustomer` database pattern to guarantee data consistency.
+* **[seed.ts](backend/src/seed.ts):** Demonstrates automated database population, cleanup cascade patterns, and initial seed loading.
+* **[server.test.ts](backend/src/server.test.ts):** Evaluates integration testing skills, WebSocket event lifecycles, and REST endpoint assertions using Jest.
 * **[useSocket.ts](frontend/src/hooks/useSocket.ts):** Displays advanced custom React hook logic orchestrating live socket states, reconnect limits, event listeners, and typing indicator cleanup timers.
 * **[globals.css](frontend/src/app/globals.css):** Showcases pure, modern Vanilla CSS layout mastery, featuring high-end custom variables, theme tokens, scrollbar styling, and dynamic CSS transitions.
 
@@ -97,10 +99,11 @@ cd ai-support-desk
    cp .env.example .env
    # Add your GEMINI_API_KEY inside the .env file
    ```
-3. Install dependencies, run Prisma migrations, and start the development server:
+3. Install dependencies, run Prisma migrations, seed the database, and start the development server:
    ```bash
    npm install
    npx prisma db push
+   npx ts-node src/seed.ts
    npm run dev
    ```
 4. The server runs locally on: **`http://localhost:5002`** (Health status available at `/api/health`).
@@ -120,6 +123,13 @@ cd ai-support-desk
    npm run dev
    ```
 4. Open your browser and navigate to: **`http://localhost:3001`** (Login with any credentials for demo mode).
+
+#### 4. Running Backend Tests
+1. Ensure you are in the `backend` directory.
+2. Run the integration test suite:
+   ```bash
+   npm run test
+   ```
 
 ---
 
