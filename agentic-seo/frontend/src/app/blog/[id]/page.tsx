@@ -38,7 +38,7 @@ export default function BlogPostDetail() {
             // Fallback for simulation mode: Get the absolute newest article
             found = data.articles[0];
           } else {
-            found = data.articles.find((x: any) => x.id === id);
+            found = data.articles.find((x: Article) => x.id === id);
           }
           
           if (found) {
@@ -49,8 +49,8 @@ export default function BlogPostDetail() {
         } else {
           setError('Failed to load blog database.');
         }
-      } catch (err: any) {
-        setError(err.message || 'Network error.');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Network error.');
       } finally {
         setLoading(false);
       }

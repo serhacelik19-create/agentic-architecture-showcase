@@ -2,12 +2,27 @@
 
 import React, { useState, useEffect } from 'react';
 
+interface Domain {
+  id: string;
+  name: string;
+  domainUrl: string;
+  brandTone: string;
+  webflowConfig?: string | null;
+}
+
 export default function DomainsPage() {
-  const [domains, setDomains] = useState<any[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [tone, setTone] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Webflow dynamic field mapping states
+  const [selectedWebflowDomain, setSelectedWebflowDomain] = useState<string | null>(null);
+  const [titleField, setTitleField] = useState('name');
+  const [slugField, setSlugField] = useState('slug');
+  const [bodyField, setBodyField] = useState('post-body');
+  const [imageField, setImageField] = useState('main-image');
 
   const fetchDomains = async () => {
     try {
@@ -22,6 +37,26 @@ export default function DomainsPage() {
   useEffect(() => {
     fetchDomains();
   }, []);
+
+  const handleSaveWebflowConfig = async (domainId: string) => {
+    try {
+      const config = { titleField, slugField, bodyField, imageField };
+      const res = await fetch(`http://localhost:5001/api/domains/${domainId}/webflow-config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webflowConfig: config })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Webflow CMS Dynamic Field Mapping successfully saved!');
+        setSelectedWebflowDomain(null);
+        fetchDomains();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save Webflow mapping.');
+    }
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,25 +228,66 @@ export default function DomainsPage() {
                       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                     </svg>
                   </div>
-                  <button 
-                    onClick={() => handleDelete(d.id)}
-                    className="btn btn-danger"
-                    style={{ 
-                      padding: '0.45rem', 
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    title="Delete domain"
-                  >
-                    <svg style={{ width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      <line x1="10" y1="11" x2="10" y2="17" />
-                      <line x1="14" y1="11" x2="14" y2="17" />
-                    </svg>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <button 
+                      onClick={() => {
+                        setSelectedWebflowDomain(selectedWebflowDomain === d.id ? null : d.id);
+                        if (d.webflowConfig) {
+                          try {
+                            const cfg = JSON.parse(d.webflowConfig);
+                            setTitleField(cfg.titleField || 'name');
+                            setSlugField(cfg.slugField || 'slug');
+                            setBodyField(cfg.bodyField || 'post-body');
+                            setImageField(cfg.imageField || 'main-image');
+                          } catch {
+                            setTitleField('name');
+                            setSlugField('slug');
+                            setBodyField('post-body');
+                            setImageField('main-image');
+                          }
+                        } else {
+                          setTitleField('name');
+                          setSlugField('slug');
+                          setBodyField('post-body');
+                          setImageField('main-image');
+                        }
+                      }}
+                      className="btn btn-secondary"
+                      style={{ 
+                        padding: '0.45rem', 
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: '0.5rem'
+                      }}
+                      title="Webflow CMS Mapping"
+                    >
+                      <svg style={{ width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(d.id)}
+                      className="btn btn-danger"
+                      style={{ 
+                        padding: '0.45rem', 
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      title="Delete domain"
+                    >
+                      <svg style={{ width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.2rem', letterSpacing: '-0.01em' }}>{d.name}</h3>
@@ -225,7 +301,41 @@ export default function DomainsPage() {
                 </a>
               </div>
               
-              {d.brandTone ? (
+              {selectedWebflowDomain === d.id ? (
+                <div style={{
+                  background: 'rgba(99, 102, 241, 0.03)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)',
+                  borderRadius: '12px',
+                  padding: '1.25rem',
+                  marginTop: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  width: '100%'
+                }}>
+                  <strong style={{ fontSize: '0.8rem', color: 'var(--primary)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Webflow CMS Field Mapping</strong>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Title Field ID</label>
+                    <input type="text" className="form-input" style={{ padding: '0.45rem 0.75rem', fontSize: '0.82rem' }} value={titleField} onChange={e => setTitleField(e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Slug Field ID</label>
+                    <input type="text" className="form-input" style={{ padding: '0.45rem 0.75rem', fontSize: '0.82rem' }} value={slugField} onChange={e => setSlugField(e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Body HTML Field ID</label>
+                    <input type="text" className="form-input" style={{ padding: '0.45rem 0.75rem', fontSize: '0.82rem' }} value={bodyField} onChange={e => setBodyField(e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Cover Image Field ID</label>
+                    <input type="text" className="form-input" style={{ padding: '0.45rem 0.75rem', fontSize: '0.82rem' }} value={imageField} onChange={e => setImageField(e.target.value)} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <button onClick={() => handleSaveWebflowConfig(d.id)} className="btn btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.78rem', borderRadius: '8px' }}>Save Config</button>
+                    <button onClick={() => setSelectedWebflowDomain(null)} className="btn btn-secondary" style={{ padding: '0.45rem 1rem', fontSize: '0.78rem', borderRadius: '8px' }}>Cancel</button>
+                  </div>
+                </div>
+              ) : d.brandTone ? (
                 <div style={{ 
                   background: 'rgba(15, 23, 42, 0.01)', 
                   border: '1px solid var(--border)', 

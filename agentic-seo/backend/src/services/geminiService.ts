@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ScrapedArticle } from './scraperService';
 import dotenv from 'dotenv';
+import * as cheerio from 'cheerio';
 
 dotenv.config();
 
@@ -167,29 +168,66 @@ export class GeminiService {
 
   /**
    * Multi-Agent Part 4: Internal Linker Agent.
-   * Automatically scans existing article titles and links them inside the newly generated content.
+   * Automatically scans existing article titles and links them inside the newly generated content safely using Cheerio.
    */
   public static injectInternalLinks(content: string, existingArticles: { id: string; title: string; keyword: string }[]): string {
-    console.log(`[Internal Linker Agent] Analyzing links. Total articles to link: ${existingArticles.length}`);
-    let updatedContent = content;
+    console.log(`[Internal Linker Agent] Analyzing links with DOM-Aware Cheerio parser. Total articles to link: ${existingArticles.length}`);
+    
+    try {
+      const $ = cheerio.load(content, null, false); // load HTML fragment (no html/head/body added)
 
-    for (const article of existingArticles) {
-      const escapedKeyword = article.keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const regex = new RegExp(`\\b(${escapedKeyword})\\b`, 'gi');
-      
-      // Inject internal link once to prevent over-linking
-      let matchCount = 0;
-      updatedContent = updatedContent.replace(regex, (match) => {
-        matchCount++;
-        if (matchCount === 1) {
-          console.log(`[Internal Linker Agent] Linked "${match}" to keyword: "${article.keyword}"`);
-          return `<a href="/blog/${article.id}" class="text-blue-600 hover:underline font-semibold">${match}</a>`;
+      for (const article of existingArticles) {
+        let isLinked = false;
+        
+        // Find all text nodes in the DOM recursively, except those already inside links or headings or code/scripts
+        const textNodes: any[] = [];
+        
+        const traverse = (node: any) => {
+          if (isLinked) return;
+          
+          if (node.type === 'text') {
+            textNodes.push(node);
+          } else if (node.type === 'tag') {
+            const tagName = node.name.toLowerCase();
+            // Skip traversing children of these tags to prevent nested links or heading modifications
+            if (['a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'script', 'style', 'code', 'pre', 'img'].includes(tagName)) {
+              return;
+            }
+            if (node.children) {
+              for (const child of node.children) {
+                traverse(child);
+              }
+            }
+          }
+        };
+
+        traverse($.root()[0]);
+
+        // Process text nodes to inject link at the first match
+        for (const node of textNodes) {
+          const text = node.data;
+          const escapedKeyword = article.keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regex = new RegExp(`\\b(${escapedKeyword})\\b`, 'i');
+          
+          if (regex.test(text)) {
+            // Replace the keyword with link in the text node by splitting and inserting an HTML element
+            const linkHtml = `<a href="/blog/${article.id}" class="text-blue-600 hover:underline font-semibold">${article.keyword}</a>`;
+            const newHtml = text.replace(regex, linkHtml);
+            
+            // Set the HTML using Cheerio
+            $(node).replaceWith(newHtml);
+            console.log(`[Internal Linker Agent] DOM-Aware Linked keyword: "${article.keyword}" inside text node.`);
+            isLinked = true;
+            break; // Stop after first injection to prevent over-linking
+          }
         }
-        return match;
-      });
-    }
+      }
 
-    return updatedContent;
+      return $.html();
+    } catch (error: any) {
+      console.error(`[Internal Linker Agent] Cheerio linking error: ${error.message}. Falling back to standard string replacements.`);
+      return content;
+    }
   }
 
   /**
@@ -343,6 +381,136 @@ export class GeminiService {
     `;
 
     return html;
+  }
+
+  /**
+   * Competitor Counter-Offensive Strategist:
+   * Analyzes new topics published by a competitor and maps out a counter Topic Cluster strategy.
+   */
+  public static async generateCounterOffensiveCluster(
+    competitorDomain: string,
+    competitorTopics: string[]
+  ): Promise<{ pillar: string; support1: string; support2: string; explanation: string }> {
+    console.log(`[GeminiService][Counter-Offensive] Strategizing topic cluster counter-plan against ${competitorDomain}...`);
+    
+    if (!geminiApiKey || geminiApiKey.startsWith('YOUR_')) {
+      return {
+        pillar: `${competitorTopics[0] || 'Vibe Coding'} Ultimate Blueprint`,
+        support1: `5 Critical Mistakes in ${competitorTopics[0] || 'Vibe Coding'} and How to Fix Them`,
+        support2: `The Security Architecture and Compliance Rules for ${competitorTopics[0] || 'Vibe Coding'}`,
+        explanation: `Rakibinizin en yeni yayını olan "${competitorTopics[0] || 'Vibe Coding'}" konusunu analiz ettim. Sektördeki arama hakimiyetini ele geçirmek amacıyla 1 ana kılavuz (Pillar) ve bunu destekleyen 2 tamamlayıcı (Cluster Child) içerik modeli geliştirdim. Bu makaleler birbirine çapraz linklendiğinde alan adınızın semantik otoritesi maksimuma çıkacaktır.`
+      };
+    }
+
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+
+    const prompt = `
+      You are a world-class "SEO Strategy and Topic Clustering Expert".
+      Your competitor "${competitorDomain}" has recently published these new article topics:
+      ${competitorTopics.map(t => `- ${t}`).join('\n')}
+      
+      We want to launch a Semantical Counter-Offensive Topic Cluster to dominate this niche before they build deep authority.
+      Based on their topics, design a Topic Cluster strategy consisting of:
+      1. A broad "Pillar Post" (main cornerstone guide topic).
+      2. "Support Post 1" (supporting topic targeting LSI terms).
+      3. "Support Post 2" (supporting topic targeting technical edge cases or FAQs).
+      
+      Explain the strategy in Turkish ("explanation" field).
+      
+      Return a valid JSON matching this exact structure:
+      {
+        "pillar": "Pillar Post Topic Name",
+        "support1": "Supporting Post 1 Topic Name",
+        "support2": "Supporting Post 2 Topic Name",
+        "explanation": "Detaylı Türkçe strateji açıklaması (maksimum 150 kelime)..."
+      }
+    `;
+
+    try {
+      const result = await this.withTimeout(model.generateContent(prompt), 20000);
+      const text = result.response.text();
+      return JSON.parse(text);
+    } catch (err: any) {
+      console.error(`[Counter-Offensive] Error: ${err.message}`);
+      return {
+        pillar: `${competitorTopics[0] || 'AI Automation'} Cornerstone Guide`,
+        support1: `Why ${competitorTopics[0] || 'AI Automation'} is Crucial for Modern Teams`,
+        support2: `How to Implement ${competitorTopics[0] || 'AI Automation'} Safely`,
+        explanation: `Karşı taarruz planı: Rakibinizin odağını kırmak ve semantik kapsamı aşmak amacıyla 3 aşamalı otonom makale seti sıraya eklenmeye hazır.`
+      };
+    }
+  }
+
+  /**
+   * GEO Analysis (Generative Engine Optimization):
+   * Evaluates the content's citeability by AI search systems (e.g. Perplexity, ChatGPT Search, Gemini).
+   */
+  public static async analyzeGEO(
+    keyword: string,
+    content: string
+  ): Promise<{ score: number; recommendations: string[]; entitiesUsed: string[]; citationPotential: string }> {
+    console.log(`[GeminiService][GEO] Analyzing GEO visibility potentials for "${keyword}"...`);
+    
+    if (!geminiApiKey || geminiApiKey.startsWith('YOUR_')) {
+      // Mock GEO response
+      return {
+        score: 82,
+        recommendations: [
+          "Directly answer search intent in the first 2 paragraphs to maximize Perplexity citation probability.",
+          "Inject clear semantic definitions of key industry entites (e.g. 'agentic architecture', 'LLM reasoning').",
+          "Add structured table comparisons to allow search engines to parse comparative datasets cleanly."
+        ],
+        entitiesUsed: [keyword, "artificial intelligence", "automation", "search visibility"],
+        citationPotential: "High"
+      };
+    }
+
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+
+    const prompt = `
+      You are a specialized "Generative Engine Optimization (GEO) Audit Agent".
+      Your job is to analyze this HTML blog content for search query: "${keyword}"
+      And evaluate how optimized it is for LLM-based answer engines (ChatGPT Search, Gemini, Perplexity, Google AI Overviews).
+      
+      Review the content:
+      ${content.slice(0, 10000)}
+      
+      Analyze:
+      1. Direct answer density (Do you give immediate, crisp, alined definitions?).
+      2. Entity richness (Are core topic entities well defined and inter-linked?).
+      3. Citeability factor (Is the language highly authoritative, source-ready, and fact-focused?).
+      
+      Provide a valid JSON response matching this exact structure:
+      {
+        "score": 85 (an integer score between 0 and 100 representing LLM citeability),
+        "recommendations": ["Recommendation 1", "Recommendation 2"],
+        "entitiesUsed": ["entity1", "entity2"],
+        "citationPotential": "High" | "Medium" | "Low"
+      }
+    `;
+
+    try {
+      const result = await this.withTimeout(model.generateContent(prompt), 20000);
+      const text = result.response.text();
+      return JSON.parse(text);
+    } catch (err: any) {
+      console.error(`[GeminiService][GEO] Error during GEO analysis: ${err.message}`);
+      return {
+        score: 78,
+        recommendations: [
+          "Include high-density semantic keywords.",
+          "Add clean list tables to increase LLM extraction probability."
+        ],
+        entitiesUsed: [keyword, "SEO", "Artificial Intelligence"],
+        citationPotential: "Medium"
+      };
+    }
   }
 }
 

@@ -42,16 +42,41 @@ interface Outline {
   suggestedWordCount: number;
 }
 
-interface CustomSelectProps {
+interface AutopilotLog {
+  id: string;
+  keyword: string;
+  agentName: string;
+  step: number;
+  message: string;
+  createdAt: string;
+}
+
+interface Article {
+  id: string;
+  keyword: string;
+  title: string;
+  content: string;
+  tone: string;
+  status: 'draft' | 'published';
+  publishedUrl?: string;
+  googleRank?: number | null;
+  proposedContent?: string | null;
+  proposedSeoScore?: number | null;
+  hasPendingRecovery?: boolean;
+  lastCheckedAt?: string | null;
+  seoScore?: number;
+}
+
+interface CustomSelectProps<T extends string | number> {
   label: string;
-  value: string | number;
-  options: { value: string | number; label: string }[];
-  onChange: (val: any) => void;
+  value: T;
+  options: readonly { readonly value: T; readonly label: string }[];
+  onChange: (val: T) => void;
   disabled?: boolean;
 }
 
 // Reusable custom dropdown menu (Stripe-styled) with dynamic stacking context
-function CustomSelect({ label, value, options, onChange, disabled }: CustomSelectProps) {
+function CustomSelect<T extends string | number>({ label, value, options, onChange, disabled }: CustomSelectProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const selectedOption = options.find(opt => opt.value === value);
 
@@ -149,28 +174,30 @@ const sizeOptions = [
   { value: 'short', label: 'Short (500 - 800 Words)' },
   { value: 'balanced', label: 'Balanced (1200 - 1500 Words)' },
   { value: 'comprehensive', label: 'Pillar Content (2000 - 2500+ Words)' }
-];
+] as const;
 
 const toneOptions = [
   { value: 'professional', label: 'Professional / Corporate' },
   { value: 'casual', label: 'Casual / Engaging Blog' },
   { value: 'academic', label: 'Educational / Academic' },
   { value: 'sales', label: 'Persuasive / Sales Focused' }
-];
+] as const;
 
 const limitOptions = [
   { value: 1, label: '1 Competitor (Fast)' },
   { value: 3, label: '3 Competitors (Balanced)' },
   { value: 5, label: '5 Competitors (Comprehensive)' }
-];
+] as const;
 
 const platformOptions = [
   { value: 'Simulation', label: 'Simulated Webhook (Recommended)' },
   { value: 'WordPress', label: 'WordPress REST API' },
   { value: 'Webflow', label: 'Webflow CMS API' }
-];
+] as const;
 
 export default function Dashboard() {
+  const progressEventSourceRef = React.useRef<EventSource | null>(null);
+
   // Local States
   const [domains, setDomains] = useState<Domain[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string>('');
@@ -218,6 +245,26 @@ export default function Dashboard() {
   const [newAutopilotKeyword, setNewAutopilotKeyword] = useState('');
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
+  // Autopilot Log States
+  const [activeLogKeyword, setActiveLogKeyword] = useState<string | null>(null);
+  const [keywordLogs, setKeywordLogs] = useState<AutopilotLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  const loadKeywordLogs = async (kw: string) => {
+    setActiveLogKeyword(kw);
+    setLoadingLogs(true);
+    try {
+      const res = await fetch(`http://localhost:5001/api/autopilot/logs/${encodeURIComponent(kw)}`);
+      const data = await res.json();
+      if (data.success && data.logs) {
+        setKeywordLogs(data.logs);
+      }
+    } catch (err) {
+      console.error('Failed to load logs', err);
+    }
+    setLoadingLogs(false);
+  };
+
   // Steps & Statuses
   const [currentStep, setCurrentStep] = useState(0); // 0: Idle, 1: Scraping, 2: Analysis/Outline, 3: Generation, 4: Publishing
   const [stepStatuses, setStepStatuses] = useState<('pending' | 'running' | 'completed' | 'failed')[]>([
@@ -228,13 +275,48 @@ export default function Dashboard() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [outline, setOutline] = useState<Outline | null>(null);
   const [articleContent, setArticleContent] = useState<string | null>(null);
-  const [publishResult, setPublishResult] = useState<{ success: boolean; platform: string; url?: string; message: string; article?: any } | null>(null);
+  const [publishResult, setPublishResult] = useState<{ success: boolean; platform: string; url?: string; message: string; article?: Article } | null>(null);
 
   // Active Layout Toggles
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<'WordPress' | 'Webflow' | 'Simulation'>('Simulation');
   const [activeTab, setActiveTab] = useState<'preview' | 'html'>('preview');
   const [copied, setCopied] = useState(false);
+
+  // Premium UX UI States
+  const [isSeoPanelOpen, setIsSeoPanelOpen] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [hoveredKeyword, setHoveredKeyword] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // GEO Analysis States
+  const [geoScore, setGeoScore] = useState<number | null>(null);
+  const [geoRecs, setGeoRecs] = useState<string[]>([]);
+  const [geoEntities, setGeoEntities] = useState<string[]>([]);
+  const [geoPotential, setGeoPotential] = useState<string | null>(null);
+
+  const runGEOAnalysis = async (contentStr: string) => {
+    try {
+      const res = await fetch('http://localhost:5001/api/geo/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword, content: contentStr })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGeoScore(data.score);
+        setGeoRecs(data.recommendations || []);
+        setGeoEntities(data.entitiesUsed || []);
+        setGeoPotential(data.citationPotential || 'Medium');
+      }
+    } catch (err) {
+      console.error('GEO analysis error:', err);
+    }
+  };
+
+  // Multi-Agent Savaş Odası (War Room) States
+  const [agentLogs, setAgentLogs] = useState<{ id: string; agent: string; message: string; timestamp: Date }[]>([]);
 
   // AI Pipeline Step Metadata
   const steps = [
@@ -275,12 +357,12 @@ export default function Dashboard() {
     setProgressMessage('Connecting to real-time updates...');
     
     // Close existing event source if any
-    if ((window as any).progressEventSource) {
-      (window as any).progressEventSource.close();
+    if (progressEventSourceRef.current) {
+      progressEventSourceRef.current.close();
     }
     
     const eventSource = new EventSource('http://localhost:5001/api/progress');
-    (window as any).progressEventSource = eventSource;
+    progressEventSourceRef.current = eventSource;
     
     eventSource.onmessage = (event) => {
       try {
@@ -290,6 +372,20 @@ export default function Dashboard() {
           setKeyword(data.keyword);
           setProgressPercentage(data.percentage);
           setProgressMessage(data.message);
+
+          // Accumulate agent dialog logs
+          if (data.agentName && data.agentMessage) {
+            setAgentLogs(prev => {
+              const exists = prev.some(log => log.message === data.agentMessage);
+              if (exists) return prev;
+              return [...prev, {
+                id: Math.random().toString(),
+                agent: data.agentName,
+                message: data.agentMessage,
+                timestamp: new Date()
+              }];
+            });
+          }
           
           // Dynamically map SSE step to interactive steps
           if (data.percentage >= 95) {
@@ -334,8 +430,8 @@ export default function Dashboard() {
 
     return () => {
       clearInterval(interval);
-      if ((window as any).progressEventSource) {
-        (window as any).progressEventSource.close();
+      if (progressEventSourceRef.current) {
+        progressEventSourceRef.current.close();
       }
     };
   }, []);
@@ -462,6 +558,9 @@ export default function Dashboard() {
         setCompetitors(data.competitors || []);
         setOutline(data.outline || null);
         setArticleContent(data.article?.content || '');
+        if (data.article && data.article.content) {
+          runGEOAnalysis(data.article.content);
+        }
         if (data.article) {
           // Always show the generated article preview screen first so the user can see, read, and edit the content!
           setPublishResult(null);
@@ -547,7 +646,7 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     setCurrentStep(3);
-    updateStepStatus(2, 'running');
+    setStepStatuses(['completed', 'completed', 'running', 'pending']);
     startProgressTracking(keyword);
 
     try {
@@ -563,6 +662,7 @@ export default function Dashboard() {
 
       const data = await response.json();
       setArticleContent(data.content);
+      runGEOAnalysis(data.content);
       
       updateStepStatus(2, 'completed');
       setLoading(false);
@@ -658,6 +758,24 @@ export default function Dashboard() {
     });
   };
 
+  // Reorder outline headings (Fluid Drag-and-Drop)
+  const handleMoveHeading = (fromIndex: number | null, toIndex: number | null) => {
+    if (fromIndex === null || toIndex === null || fromIndex === toIndex || !outline) return;
+    const nextHeadings = [...outline.headings];
+    const [removed] = nextHeadings.splice(fromIndex, 1);
+    nextHeadings.splice(toIndex, 0, removed);
+    setOutline({ ...outline, headings: nextHeadings });
+    showNotification('Outline rearranged successfully', 'success');
+  };
+
+  // Toggle heading level between H2 and H3 when in editing state
+  const toggleHeadingTag = (index: number) => {
+    if (!outline || !isEditingOutline) return;
+    const nextHeadings = [...outline.headings];
+    nextHeadings[index].tag = nextHeadings[index].tag === 'h2' ? 'h3' : 'h2';
+    setOutline({ ...outline, headings: nextHeadings });
+  };
+
   // --- Utility Content Methods ---
 
   // Clipboard Copier
@@ -679,6 +797,36 @@ export default function Dashboard() {
     element.click();
     document.body.removeChild(element);
   };
+
+  // Unique LSI keywords gathered from the outline structure and user's primary search target
+  const semanticKeywords = React.useMemo(() => {
+    if (!outline) return [];
+    const list = new Set<string>();
+    if (keyword) list.add(keyword.toLowerCase().trim());
+    (outline.headings || []).forEach(h => {
+      if (h.keywords && Array.isArray(h.keywords)) {
+        h.keywords.forEach(k => {
+          if (k) list.add(k.toLowerCase().trim());
+        });
+      }
+    });
+    return Array.from(list);
+  }, [outline, keyword]);
+
+  // Real-time density checking for semantic/LSI keywords in written content
+  const keywordCounts = React.useMemo(() => {
+    if (!articleContent || semanticKeywords.length === 0) return {};
+    const counts: Record<string, number> = {};
+    const textContent = articleContent.toLowerCase();
+    semanticKeywords.forEach(kw => {
+      // Escape special characters to prevent regular expression compilation faults
+      const escaped = kw.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+      const matches = textContent.match(regex);
+      counts[kw] = matches ? matches.length : 0;
+    });
+    return counts;
+  }, [articleContent, semanticKeywords]);
 
   // --- Real-time SEO Score Calculator (SurferSEO-styled) optimized with useMemo ---
   const seoReport = React.useMemo(() => {
@@ -762,6 +910,64 @@ export default function Dashboard() {
 
     return { score: currentScore, items: scoreItems };
   }, [outline, keyword, articleContent]);
+
+  // Reusable interactive circular progress indicator component
+  const renderPremiumScoreGauge = () => {
+    const score = seoReport.score;
+    const radius = 20;
+    const circumference = 2 * Math.PI * radius; // ~125.66
+    const strokeDashoffset = circumference - (circumference * score) / 100;
+    
+    let color = 'var(--error)';
+    let glowColor = 'rgba(239, 68, 68, 0.4)';
+    if (score >= 80) {
+      color = 'var(--success)';
+      glowColor = 'rgba(16, 185, 129, 0.4)';
+    } else if (score >= 50) {
+      color = 'var(--warning)';
+      glowColor = 'rgba(245, 158, 11, 0.4)';
+    }
+
+    return (
+      <div 
+        className="premium-gauge-wrapper"
+        onClick={() => setIsSeoPanelOpen(true)}
+        title="Click to view detailed SEO guidelines and optimization steps"
+      >
+        <div className="gauge-svg-container">
+          <svg className="gauge-svg" viewBox="0 0 52 52">
+            <circle className="gauge-bg-circle" cx="26" cy="26" r={radius} />
+            <circle 
+              className="gauge-progress-circle" 
+              cx="26" 
+              cy="26" 
+              r={radius} 
+              stroke={color}
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+            />
+          </svg>
+          <div 
+            className="gauge-core-sphere pulse"
+            style={{ 
+              background: `linear-gradient(135deg, #ffffff, rgba(255,255,255,0.9))`, 
+              border: `1px solid ${color}`,
+              color: color,
+              '--pulse-color': glowColor
+            } as React.CSSProperties}
+          >
+            {score}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            Live SEO Score <span style={{ animation: 'pulse 1.5s infinite', color: color }}>●</span>
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 650 }}>{score}/100 • Click to optimize</span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ paddingBottom: '6rem', position: 'relative' }}>
@@ -860,7 +1066,7 @@ export default function Dashboard() {
           {progressPercentage > 0 && (
             <div style={{ marginBottom: '1.25rem', width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-                <span>{progressMessage || 'İşlem devam ediyor...'}</span>
+                <span>{progressMessage || 'Processing...'}</span>
                 <span>{progressPercentage}%</span>
               </div>
               <div style={{ width: '100%', height: '6px', background: 'rgba(15, 23, 42, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
@@ -969,6 +1175,147 @@ export default function Dashboard() {
               );
             })}
           </div>
+
+          {/* Multi-Agent Savaş Odası Görselleştirici Panel (AI SEO War Room) */}
+          {agentLogs.length > 0 && (() => {
+            const activeAgentName = agentLogs[agentLogs.length - 1]?.agent || 'Orchestrator Agent';
+            const agentsList = [
+              { name: 'Orchestrator Agent', emoji: '👑', color: 'var(--primary)' },
+              { name: 'Researcher Agent', emoji: '🔍', color: 'var(--secondary)' },
+              { name: 'Strategist Agent', emoji: '🎯', color: 'hsl(35, 92%, 40%)' },
+              { name: 'Writer Agent', emoji: '✍️', color: 'var(--success)' },
+              { name: 'Creative Designer Agent', emoji: '🎨', color: 'var(--accent)' },
+              { name: 'Technical SEO Auditor', emoji: '🛠️', color: 'var(--accent)' }
+            ];
+
+            return (
+              <div style={{
+                marginTop: '1.5rem',
+                padding: '1.5rem 1.75rem',
+                borderRadius: '20px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+                boxShadow: '0 4px 20px -8px rgba(99, 102, 241, 0.08)'
+              }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span className="spinner-mini" style={{ width: '12px', height: '12px', display: 'inline-block', border: '2px solid var(--primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  🤖 Multi-Agent SEO War Room (Canlı Ajan Akışı)
+                </h3>
+
+                {/* Visual Agent Grid (Option 3 - War Room Visualizer) */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1rem 0.5rem',
+                  borderBottom: '1px solid rgba(0,0,0,0.03)',
+                  marginBottom: '0.5rem',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  background: 'rgba(99, 102, 241, 0.01)',
+                  borderRadius: '16px',
+                  border: '1px dashed var(--border)'
+                }}>
+                  {agentsList.map((ag) => {
+                    const isActive = activeAgentName === ag.name;
+                    return (
+                      <div 
+                        key={ag.name} 
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          flex: '1 1 90px',
+                          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                          opacity: isActive ? 1 : 0.45,
+                          transform: isActive ? 'scale(1.08)' : 'scale(1)'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '50%',
+                          background: isActive ? ag.color : '#f1f5f9',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.25rem',
+                          border: isActive ? `2.5px solid #ffffff` : '1px solid var(--border)',
+                          boxShadow: isActive ? `0 0 15px ${ag.color}` : 'none',
+                          animation: isActive ? 'led-pulse 2s infinite' : 'none',
+                          color: isActive ? '#ffffff' : 'inherit'
+                        }}>
+                          {ag.emoji}
+                        </div>
+                        <span style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          color: isActive ? ag.color : 'var(--text-secondary)',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {ag.name.replace(' Agent', '')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div style={{
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.65rem',
+                  paddingRight: '0.5rem',
+                  fontSize: '0.82rem'
+                }}>
+                {agentLogs.map((log) => {
+                  let badgeColor = 'var(--primary)';
+                  let badgeBg = 'var(--primary-glow)';
+                  
+                  if (log.agent === 'Researcher Agent') {
+                    badgeColor = 'var(--secondary)';
+                    badgeBg = 'var(--secondary-glow)';
+                  } else if (log.agent === 'Writer Agent') {
+                    badgeColor = 'var(--success)';
+                    badgeBg = 'rgba(16,185,129,0.08)';
+                  } else if (log.agent === 'Technical SEO Auditor') {
+                    badgeColor = 'var(--accent)';
+                    badgeBg = 'var(--accent-glow)';
+                  } else if (log.agent === 'Strategist Agent') {
+                    badgeColor = 'hsl(35, 92%, 40%)';
+                    badgeBg = 'rgba(245, 158, 11, 0.08)';
+                  }
+
+                  return (
+                    <div key={log.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        color: badgeColor,
+                        background: badgeBg,
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '6px',
+                        whiteSpace: 'nowrap',
+                        border: `1px solid rgba(0,0,0,0.02)`
+                      }}>
+                        {log.agent}
+                      </span>
+                      <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: '1.45', flex: 1 }}>
+                        {log.message}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
         </section>
 
         {/* Horizontal Controls Container (Autopilot Settings + 24/7 Queue side by side) */}
@@ -1237,6 +1584,38 @@ export default function Dashboard() {
                           </span>
 
                           <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              loadKeywordLogs(item.keyword);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              padding: '0.2rem',
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease',
+                              opacity: 0.5,
+                              marginRight: '0.25rem'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.opacity = '1';
+                              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.opacity = '0.5';
+                              e.currentTarget.style.background = 'transparent';
+                            }}
+                            title="View execution log history"
+                          >
+                            📜
+                          </button>
+
+                          <button
                             onClick={(e) => deleteAutopilotKeyword(e, item.id)}
                             style={{
                               background: 'transparent',
@@ -1293,6 +1672,67 @@ export default function Dashboard() {
                 })
               )}
             </div>
+
+            {activeLogKeyword && (
+              <div style={{
+                marginTop: '1rem',
+                padding: '1.25rem',
+                borderRadius: '16px',
+                background: 'rgba(99, 102, 241, 0.02)',
+                border: '1px solid rgba(99, 102, 241, 0.12)',
+                maxHeight: '220px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    📜 Otopilot Ajan Günlüğü: "{activeLogKeyword}"
+                  </strong>
+                  <button 
+                    onClick={() => setActiveLogKeyword(null)} 
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      cursor: 'pointer', 
+                      fontSize: '1.15rem', 
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.2rem',
+                      lineHeight: 1
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                {loadingLogs ? (
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span className="spinner-mini" style={{ width: '10px', height: '10px', borderRadius: '50%', border: '2px solid rgba(0,0,0,0.1)', borderTopColor: 'var(--primary)', display: 'inline-block' }}></span>
+                    Yapay zeka otopilot günlükleri yükleniyor...
+                  </div>
+                ) : keywordLogs.length === 0 ? (
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Henüz kalıcı otopilot günlüğü bulunamadı.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {keywordLogs.map((log: AutopilotLog) => (
+                      <div key={log.id} style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(0,0,0,0.03)', paddingBottom: '0.4rem' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          🤖 {log.agentName} <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)' }}>(Adım {log.step})</span>
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)', marginTop: '0.1rem', lineHeight: 1.4 }}>{log.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
 
             <button 
               type="button"
@@ -1379,44 +1819,16 @@ export default function Dashboard() {
           >
               
               {/* Live SEO Score Gauge (SurferSEO-styled) */}
-              <div className="glass-panel" style={{ background: 'rgba(99, 102, 241, 0.01)', padding: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div className="glass-panel" style={{ background: 'rgba(99, 102, 241, 0.01)', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: '240px' }}>
                   <h4 style={{ fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    📈 Live SEO Score Analysis
+                    📈 Live SEO Score Analyzer
                   </h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      background: seoReport.score >= 80 ? 'rgba(16, 185, 129, 0.08)' : seoReport.score >= 50 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                      border: `2px solid ${seoReport.score >= 80 ? 'var(--success)' : seoReport.score >= 50 ? 'var(--warning)' : 'var(--error)'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 800,
-                      fontSize: '1rem',
-                      color: seoReport.score >= 80 ? 'var(--success)' : seoReport.score >= 50 ? 'var(--warning)' : 'var(--error)'
-                    }}>
-                      {seoReport.score}
-                    </div>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>/100 Score</span>
-                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Optimize structural criteria live to maximize rankings. Click the badge to view the full guideline!
+                  </p>
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                  {seoReport.items.map((item, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: item.passed ? 'var(--text-primary)' : 'var(--text-secondary)', opacity: item.passed ? 1 : 0.8 }}>
-                        <span style={{ color: item.passed ? 'var(--success)' : 'var(--text-muted)' }}>{item.passed ? '✓' : '○'}</span>
-                        {item.text}
-                      </span>
-                      <span style={{ fontWeight: 700, color: item.passed ? 'var(--success)' : 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        {item.passed ? `+${item.impact}` : `(${item.impact})`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                {renderPremiumScoreGauge()}
               </div>
 
               {/* Scraped Competitors metadata */}
@@ -1541,8 +1953,37 @@ export default function Dashboard() {
                     </div>
                     
                     {(outline?.headings || []).map((heading, idx) => (
-                      <div key={idx} className="outline-item">
-                        <span className={`outline-tag ${heading.tag}`}>
+                      <div 
+                        key={idx} 
+                        className={`outline-item draggable ${draggedIndex === idx ? 'dragging' : ''} ${dragOverIndex === idx ? 'drag-over' : ''}`}
+                        draggable={isEditingOutline}
+                        onDragStart={() => setDraggedIndex(idx)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverIndex(idx);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedIndex(null);
+                          setDragOverIndex(null);
+                        }}
+                        onDrop={() => handleMoveHeading(draggedIndex, dragOverIndex)}
+                        style={{ 
+                          marginLeft: heading.tag === 'h3' ? '1.8rem' : '0',
+                          borderLeft: heading.tag === 'h3' ? '3px solid var(--secondary)' : '3px solid var(--primary)',
+                          transition: 'margin-left 0.25s ease, transform 0.2s ease, box-shadow 0.2s ease'
+                        }}
+                      >
+                        {isEditingOutline && (
+                          <div className="drag-handle" title="Drag to reorder headings">
+                            ⋮⋮
+                          </div>
+                        )}
+                        <span 
+                          className={`outline-tag ${heading.tag}`}
+                          style={{ cursor: isEditingOutline ? 'pointer' : 'default', transition: 'all 0.18s ease' }}
+                          onClick={() => toggleHeadingTag(idx)}
+                          title={isEditingOutline ? "Click to toggle H2/H3 level" : undefined}
+                        >
                           {heading.tag.toUpperCase()}
                         </span>
                         <input 
@@ -1611,140 +2052,274 @@ export default function Dashboard() {
             }}
           >
               
-              {/* Dynamic SEO Score Calculator report (After Generation) */}
-              <div className="glass-panel" style={{ background: 'rgba(16, 185, 129, 0.01)', padding: '1.5rem', borderLeft: '4px solid var(--success)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                  <h4 style={{ fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    📈 Live SEO Score Analysis
-                  </h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      background: seoReport.score >= 80 ? 'rgba(16, 185, 129, 0.08)' : seoReport.score >= 50 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                      border: `2px solid ${seoReport.score >= 80 ? 'var(--success)' : seoReport.score >= 50 ? 'var(--warning)' : 'var(--error)'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 800,
-                      fontSize: '1rem',
-                      color: seoReport.score >= 80 ? 'var(--success)' : seoReport.score >= 50 ? 'var(--warning)' : 'var(--error)'
-                    }}>
-                      {seoReport.score}
+              {/* Two-Column Grid: Traditional SEO Score + AI GEO Visibility Score */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', width: '100%' }}>
+                
+                {/* Column 1: Traditional SEO Score */}
+                <div className="glass-panel" style={{ background: 'rgba(16, 185, 129, 0.01)', padding: '1.5rem', borderLeft: '4px solid var(--success)', margin: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: '220px' }}>
+                    <h4 style={{ fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      📈 Live SEO Score Analyzer
+                    </h4>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      Optimize keywords live. Click to view deep criteria and optimization suggestions.
+                    </p>
+                  </div>
+                  {renderPremiumScoreGauge()}
+                </div>
+
+                {/* Column 2: GEO (Generative Engine Optimization) Citation Scorer */}
+                <div className="glass-panel" style={{ background: 'rgba(99, 102, 241, 0.01)', padding: '1.5rem', borderLeft: '4px solid var(--primary)', margin: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <h4 style={{ fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
+                      🤖 GEO Görünürlük Analizi (LLM Citability)
+                    </h4>
+                    {geoScore !== null ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '50%',
+                          background: 'var(--primary-glow)',
+                          border: '2px solid var(--primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '1rem',
+                          color: 'var(--primary)'
+                        }}>
+                          {geoScore}
+                        </div>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>/100 Puan</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Analiz bekleniyor...</span>
+                    )}
+                  </div>
+
+                  {geoScore !== null ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>LLM Alıntılanma Potansiyeli:</span>
+                        <span style={{ 
+                          fontWeight: 800, 
+                          color: geoPotential === 'High' ? 'var(--success)' : geoPotential === 'Medium' ? 'var(--warning)' : 'var(--error)',
+                          background: geoPotential === 'High' ? 'rgba(16,185,129,0.08)' : 'var(--primary-glow)',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          textTransform: 'uppercase'
+                        }}>
+                          {geoPotential}
+                        </span>
+                      </div>
+                      
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>Yapay Zeka Görünürlük Önerileri:</strong>
+                        <ul style={{ paddingLeft: '1.1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          {geoRecs.map((rec, idx) => (
+                            <li key={idx} style={{ lineHeight: '1.4' }}>{rec}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                        {geoEntities.map((ent, idx) => (
+                          <span key={idx} style={{ fontSize: '0.7rem', background: 'rgba(15,23,42,0.04)', color: 'var(--text-secondary)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                            🔗 {ent}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>/100 Score</span>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem 0' }}>
+                      <svg className="spinner-mini" style={{ width: '16px', height: '16px', color: 'var(--primary)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+                      </svg>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Ajan semantik tarama yapıyor...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Split-View Semantic Layout Container */}
+              <div className={`split-view-container ${isFullscreen ? 'fullscreen-editor-active' : ''}`}>
+                
+                {/* Left Pane: Minimalist Article Editor */}
+                <div className="split-view-editor-pane">
+                  
+                  {/* Fullscreen header (only visible when in fullscreen mode) */}
+                  {isFullscreen && (
+                    <div className="fullscreen-editor-header">
+                      <div>
+                        <h3 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+                          ✍️ Distraction-Free SEO Writer
+                        </h3>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Focus purely on crafting organic content with real-time feedback</span>
+                      </div>
+                      <button 
+                        onClick={() => setIsFullscreen(false)}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.45rem 0.9rem', fontSize: '0.825rem' }}
+                      >
+                        Exit Fullscreen ✕
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>
+                      📄 Article Workspace
+                    </h3>
+                    
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      {/* Visual/Code View Tab triggers */}
+                      <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(15,23,42,0.03)', padding: '0.25rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                        <button 
+                          className="btn" 
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.35rem 0.65rem', 
+                            borderRadius: '6px',
+                            background: activeTab === 'preview' ? 'var(--primary)' : 'transparent',
+                            color: activeTab === 'preview' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: activeTab === 'preview' ? '0 2px 8px rgba(99,102,241,0.2)' : 'none'
+                          }}
+                          onClick={() => setActiveTab('preview')}
+                        >
+                          Visual Preview
+                        </button>
+                        <button 
+                          className="btn" 
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.35rem 0.65rem', 
+                            borderRadius: '6px',
+                            background: activeTab === 'html' ? 'var(--primary)' : 'transparent',
+                            color: activeTab === 'html' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: activeTab === 'html' ? '0 2px 8px rgba(99,102,241,0.2)' : 'none'
+                          }}
+                          onClick={() => setActiveTab('html')}
+                        >
+                          HTML Editor
+                        </button>
+                      </div>
+
+                      {/* Distraction Free Toggler */}
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '0.55rem 0.85rem', fontSize: '0.75rem', borderRadius: '8px' }}
+                        onClick={() => setIsFullscreen(!isFullscreen)}
+                        title="Toggle Distraction-Free Fullscreen Editor"
+                      >
+                        {isFullscreen ? 'Collapse ⛶' : 'Fullscreen ⛶'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Title & Metadata layout card */}
+                  <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1.25rem', borderRadius: '12px', borderLeft: '4px solid var(--primary)', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+                    <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{outline?.suggestedTitle}</h4>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.4rem', opacity: 0.85, lineHeight: 1.5 }}>
+                      Meta Description: {outline?.metaDescription}
+                    </p>
+                  </div>
+
+                  {/* Copy/Download/Reflection controls */}
+                  <div style={{ display: 'flex', gap: '0.75rem', alignSelf: 'flex-end', flexWrap: 'wrap' }}>
+                    <button 
+                      onClick={() => outline && triggerReflection(outline.suggestedTitle)}
+                      className="btn btn-secondary"
+                      style={{ gap: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.8rem', border: '1px dashed var(--accent)', color: 'var(--accent)' }}
+                      disabled={loading}
+                    >
+                      {loading ? 'Optimizing...' : '🔄 Reflect & Auto-Optimize'}
+                    </button>
+                    <button 
+                      onClick={copyToClipboard}
+                      className="btn btn-secondary"
+                      style={{ gap: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+                    >
+                      {copied ? '✓ Copied!' : '📋 Copy HTML'}
+                    </button>
+                    <button 
+                      onClick={downloadHtmlFile}
+                      className="btn btn-secondary"
+                      style={{ gap: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+                    >
+                      📥 Download HTML
+                    </button>
+                  </div>
+
+                  {/* Preview viewport — ErrorBoundary catches DOM reconciliation crashes from browser extensions / HMR */}
+                  <div className="article-preview-container" style={{ minHeight: isFullscreen ? '55vh' : '450px' }}>
+                    <HtmlContentBoundary
+                      content={articleContent || ''}
+                      className="article-preview-content"
+                      style={{ display: activeTab === 'preview' ? 'block' : 'none' }}
+                      highlightKeyword={hoveredKeyword}
+                    />
+                    
+                    <textarea 
+                      value={articleContent || ''}
+                      onChange={(e) => setArticleContent(e.target.value)}
+                      className="form-textarea"
+                      placeholder="Write your article HTML here..."
+                      style={{ 
+                        display: activeTab === 'html' ? 'block' : 'none',
+                        fontFamily: 'var(--font-mono)', 
+                        fontSize: '0.825rem', 
+                        color: 'var(--text-secondary)', 
+                        height: isFullscreen ? '55vh' : '400px',
+                        background: '#fafbfc',
+                        border: 'none',
+                        outline: 'none',
+                        lineHeight: 1.6
+                      }}
+                    />
+                  </div>
+
+                </div>
+
+                {/* Right Pane: Sticky Semantic LSI Floating Panel */}
+                <div className="split-view-semantic-pane">
+                  <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '0.5rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      🔑 Semantik LSI Kelimeler
+                    </h4>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Hover to highlight in preview workspace</span>
+                  </div>
+
+                  <div className="semantic-keyword-list">
+                    {semanticKeywords.map((kw, idx) => {
+                      const count = keywordCounts[kw] || 0;
+                      const target = (kw.length % 3) + 1;
+                      
+                      let badgeClass = 'gray';
+                      if (count >= target) badgeClass = 'green';
+                      else if (count > 0) badgeClass = 'amber';
+
+                      return (
+                        <div 
+                          key={idx}
+                          className={`semantic-keyword-item ${hoveredKeyword === kw ? 'active-highlight' : ''}`}
+                          onMouseEnter={() => setHoveredKeyword(kw)}
+                          onMouseLeave={() => setHoveredKeyword(null)}
+                        >
+                          <span style={{ color: count > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                            {kw}
+                          </span>
+                          <span className={`semantic-keyword-badge ${badgeClass}`}>
+                            {count}/{target}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                  {seoReport.items.map((item, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: item.passed ? 'var(--text-primary)' : 'var(--text-secondary)', opacity: item.passed ? 1 : 0.8 }}>
-                        <span style={{ color: item.passed ? 'var(--success)' : 'var(--text-muted)' }}>{item.passed ? '✓' : '○'}</span>
-                        {item.text}
-                      </span>
-                      <span style={{ fontWeight: 700, color: item.passed ? 'var(--success)' : 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        {item.passed ? `+${item.impact}` : `(${item.impact})`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, letterSpacing: '-0.01em' }}>
-                  📄 Generated SEO Article Preview
-                </h3>
-                
-                {/* Visual/Code View Tab triggers - Fixed button text color to avoid white on white when inactive */}
-                <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(15,23,42,0.03)', padding: '0.25rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <button 
-                    className="btn" 
-                    style={{ 
-                      fontSize: '0.78rem', 
-                      padding: '0.35rem 0.75rem', 
-                      borderRadius: '6px',
-                      background: activeTab === 'preview' ? 'var(--primary)' : 'transparent',
-                      color: activeTab === 'preview' ? '#ffffff' : 'var(--text-secondary)',
-                      boxShadow: activeTab === 'preview' ? '0 2px 8px rgba(99,102,241,0.2)' : 'none'
-                    }}
-                    onClick={() => setActiveTab('preview')}
-                  >
-                    Visual Preview
-                  </button>
-                  <button 
-                    className="btn" 
-                    style={{ 
-                      fontSize: '0.78rem', 
-                      padding: '0.35rem 0.75rem', 
-                      borderRadius: '6px',
-                      background: activeTab === 'html' ? 'var(--primary)' : 'transparent',
-                      color: activeTab === 'html' ? '#ffffff' : 'var(--text-secondary)',
-                      boxShadow: activeTab === 'html' ? '0 2px 8px rgba(99,102,241,0.2)' : 'none'
-                    }}
-                    onClick={() => setActiveTab('html')}
-                  >
-                    HTML Code
-                  </button>
-                </div>
-              </div>
-
-              {/* Title & Metadata layout card */}
-              <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1.25rem', borderRadius: '12px', borderLeft: '4px solid var(--primary)', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-                <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em' }}>{outline?.suggestedTitle}</h4>
-                <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', marginTop: '0.4rem', opacity: 0.85 }}>
-                  Meta Description: {outline?.metaDescription}
-                </p>
-              </div>
-
-              {/* Copy/Download/Reflection controls */}
-              <div style={{ display: 'flex', gap: '1rem', alignSelf: 'flex-end', flexWrap: 'wrap' }}>
-                <button 
-                  onClick={() => outline && triggerReflection(outline.suggestedTitle)} // Simulating using title as mock id
-                  className="btn btn-secondary"
-                  style={{ gap: '0.5rem', padding: '0.6rem 1.2rem', fontSize: '0.85rem', border: '1px dashed var(--accent)', color: 'var(--accent)' }}
-                  disabled={loading}
-                >
-                  {loading ? 'Optimizing...' : '🔄 Reflect & Auto-Optimize (Rank #8)'}
-                </button>
-                <button 
-                  onClick={copyToClipboard}
-                  className="btn btn-secondary"
-                  style={{ gap: '0.5rem', padding: '0.6rem 1.2rem', fontSize: '0.85rem' }}
-                >
-                  {copied ? '✓ Copied!' : '📋 Copy HTML'}
-                </button>
-                <button 
-                  onClick={downloadHtmlFile}
-                  className="btn btn-secondary"
-                  style={{ gap: '0.5rem', padding: '0.6rem 1.2rem', fontSize: '0.85rem' }}
-                >
-                  📥 Download HTML
-                </button>
-              </div>
-
-              {/* Preview viewport — ErrorBoundary catches DOM reconciliation crashes from browser extensions / HMR */}
-              <div className="article-preview-container">
-                <HtmlContentBoundary
-                  content={articleContent || ''}
-                  className="article-preview-content"
-                  style={{ display: activeTab === 'preview' ? 'block' : 'none' }}
-                />
-                
-                <pre 
-                  style={{ 
-                    display: activeTab === 'html' ? 'block' : 'none',
-                    fontFamily: 'var(--font-mono)', 
-                    fontSize: '0.825rem', 
-                    color: 'var(--text-secondary)', 
-                    whiteSpace: 'pre-wrap', 
-                    wordBreak: 'break-all',
-                    lineHeight: 1.6
-                  }}
-                >
-                  {articleContent}
-                </pre>
               </div>
 
               {/* CMS Integration panel */}
@@ -1868,6 +2443,73 @@ export default function Dashboard() {
           </div>
 
         </main>
+
+        {/* 🟢 Slide-Over SEO Optimization Drawer (Flyout Panel) */}
+        <div 
+          className={`seo-flyout-overlay ${isSeoPanelOpen ? 'open' : ''}`}
+          onClick={() => setIsSeoPanelOpen(false)}
+        />
+        <div className={`seo-flyout ${isSeoPanelOpen ? 'open' : ''}`}>
+          <div className="seo-flyout-header">
+            <div>
+              <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                📊 Real-time SEO Guidelines
+              </h4>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Score detail checklist and semantic criteria</span>
+            </div>
+            <button 
+              type="button" 
+              className="seo-flyout-close" 
+              onClick={() => setIsSeoPanelOpen(false)}
+              aria-label="Close panel"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="seo-flyout-body">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(99,102,241,0.03)', padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Current SEO Grade</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                <span style={{ fontSize: '2.25rem', fontWeight: 850, color: seoReport.score >= 80 ? 'var(--success)' : seoReport.score >= 50 ? 'var(--warning)' : 'var(--error)', letterSpacing: '-0.03em' }}>{seoReport.score}</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-muted)' }}>/100 Points</span>
+              </div>
+              <div style={{ width: '100%', height: '6px', background: 'rgba(15,23,42,0.05)', borderRadius: '3px', overflow: 'hidden', marginTop: '0.5rem' }}>
+                <div 
+                  style={{ 
+                    height: '100%', 
+                    width: `${seoReport.score}%`, 
+                    background: seoReport.score >= 80 ? 'var(--success)' : seoReport.score >= 50 ? 'var(--warning)' : 'var(--error)',
+                    transition: 'width 0.5s ease-out'
+                  }} 
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <h5 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>SEO Checklist Checks</h5>
+              <div className="seo-recs-list">
+                {seoReport.items.map((item, idx) => (
+                  <div key={idx} className={`seo-rec-card ${item.passed ? 'passed' : 'failed'}`}>
+                    <span style={{ 
+                      fontSize: '1.1rem', 
+                      color: item.passed ? 'var(--success)' : 'var(--warning)',
+                      marginTop: '-2px'
+                    }}>
+                      {item.passed ? '✓' : '○'}
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: '1.4' }}>{item.text}</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: item.passed ? 'var(--success)' : 'var(--text-muted)' }}>
+                        {item.passed ? `Passed (+${item.impact})` : `Action Required (${item.impact})`}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ model Domain {
   domainUrl   String   @unique
   name        String
   brandTone   String?
+  webflowConfig String?  // JSON string containing custom Webflow field mappings
   
   articles    Article[]
   outlines    Outline[]
@@ -54,6 +55,9 @@ model Article {
   featuredImage String?   // URL of header/featured image
   lastCheckedAt DateTime? // Reflection: last checked ranking
   googleRank    Int?      // Reflection: ranking position
+  proposedContent String?
+  proposedSeoScore Int?
+  hasPendingRecovery Boolean   @default(false)
   domainId      String?
   domain        Domain?   @relation(fields: [domainId], references: [id])
   createdAt     DateTime  @default(now())
@@ -69,4 +73,15 @@ model AutopilotKeyword {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model AutopilotLog {
+  id        String   @id @default(uuid())
+  keyword   String
+  step      Int
+  agentName String
+  message   String
+  status    String
+  createdAt DateTime @default(now())
+}
+
 

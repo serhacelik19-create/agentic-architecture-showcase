@@ -39,3 +39,19 @@ export const deleteDomain = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateDomainWebflowConfig = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { webflowConfig } = req.body;
+    
+    const updated = await prisma.domain.update({
+      where: { id },
+      data: { webflowConfig: typeof webflowConfig === 'object' ? JSON.stringify(webflowConfig) : webflowConfig }
+    });
+    
+    res.json({ success: true, domain: updated });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

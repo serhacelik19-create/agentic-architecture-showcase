@@ -11,7 +11,8 @@ class MockPrisma {
     outline: [],
     article: [],
     autopilotKeyword: [],
-    domain: []
+    domain: [],
+    autopilotLog: []
   };
 
   constructor() {
@@ -240,6 +241,33 @@ class MockPrisma {
         return deleted;
       }
       return null;
+    },
+    update: async (args: any) => {
+      const table = this.getTable('domain');
+      const idx = table.findIndex(x => x.id === args.where.id);
+      if (idx > -1) {
+        table[idx] = { ...table[idx], ...args.data, updatedAt: new Date().toISOString() };
+        this.save();
+        return table[idx];
+      }
+      return null;
+    }
+  };
+
+  autopilotLog = {
+    findMany: async (args?: any) => {
+      let list = this.getTable('autopilotLog');
+      if (args?.where?.keyword) {
+        list = list.filter(x => x.keyword === args.where.keyword);
+      }
+      return list;
+    },
+    create: async (args: any) => {
+      const table = this.getTable('autopilotLog');
+      const data = { id: Math.random().toString(), ...args.data, createdAt: new Date() };
+      table.push(data);
+      this.save();
+      return data;
     }
   };
 }
@@ -311,6 +339,14 @@ class SafePrismaClient {
       findUnique: (args?: any) => this.execute('domain', 'findUnique', args),
       create: (args: any) => this.execute('domain', 'create', args),
       delete: (args: any) => this.execute('domain', 'delete', args),
+      update: (args: any) => this.execute('domain', 'update', args),
+    };
+  }
+
+  get autopilotLog() {
+    return {
+      findMany: (args?: any) => this.execute('autopilotLog', 'findMany', args),
+      create: (args: any) => this.execute('autopilotLog', 'create', args),
     };
   }
 }

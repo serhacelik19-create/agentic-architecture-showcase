@@ -154,4 +154,85 @@ export class ScraperService {
 
     return scrapedArticles;
   }
+
+  /**
+   * Crawls a competitor domain's sitemap.xml to find newly published articles.
+   * If a sitemap index is found, it recursively crawls the sub-sitemaps (like post-sitemap.xml).
+   */
+  public static async crawlSitemap(domain: string): Promise<string[]> {
+    const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+    const sitemapUrl = `https://${cleanDomain}/sitemap.xml`;
+    console.log(`[ScraperService] Attempting to crawl sitemap for domain: ${sitemapUrl}`);
+
+    try {
+      const response = await fetch(sitemapUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch sitemap.xml (Status: ${response.status})`);
+      }
+
+      const xmlText = await response.text();
+      
+      // Extract loc tags using regex to avoid heavy XML parser dependencies
+      const locRegex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
+      let matches: string[] = [];
+      let match;
+      while ((match = locRegex.exec(xmlText)) !== null) {
+        matches.push(match[1].trim());
+      }
+
+      // Filter out main domain, categories, tags, or sitemaps
+      const articleUrls = matches.filter(url => {
+        const lowerUrl = url.toLowerCase();
+        // Skip sitemap index urls themselves
+        if (lowerUrl.includes('sitemap') && lowerUrl.endsWith('.xml')) {
+          return false;
+        }
+        // Skip root domain and simple assets
+        const urlObj = new URL(url);
+        const path = urlObj.pathname.replace(/\/$/, '');
+        if (!path || path.length < 3) return false;
+        if (path.includes('/category/') || path.includes('/tag/') || path.includes('/author/')) return false;
+        
+        return true;
+      });
+
+      // If we found sub-sitemaps (e.g. post-sitemap.xml), let's crawl the first post-sitemap
+      const subSitemaps = matches.filter(url => url.toLowerCase().includes('sitemap') && url.endsWith('.xml'));
+      if (subSitemaps.length > 0 && articleUrls.length === 0) {
+        // Find a post or article sitemap if possible, otherwise crawl the first sub-sitemap
+        const targetSitemap = subSitemaps.find(url => url.toLowerCase().includes('post') || url.toLowerCase().includes('article')) || subSitemaps[0];
+        console.log(`[ScraperService] Sitemap index detected. Crawling sub-sitemap: ${targetSitemap}`);
+        
+        const subResponse = await fetch(targetSitemap, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        if (subResponse.ok) {
+          const subXml = await subResponse.text();
+          let subMatches: string[] = [];
+          let subMatch;
+          const subLocRegex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
+          while ((subMatch = subLocRegex.exec(subXml)) !== null) {
+            subMatches.push(subMatch[1].trim());
+          }
+          return subMatches.filter(url => {
+            const urlObj = new URL(url);
+            const path = urlObj.pathname.replace(/\/$/, '');
+            return path && path.length > 3 && !path.includes('/category/') && !path.includes('/tag/') && !path.includes('/author/');
+          });
+        }
+      }
+
+      return articleUrls;
+    } catch (error: any) {
+      console.error(`[ScraperService] Error crawling sitemap: ${error.message}`);
+      return []; // Return empty array so fallback / simulated logic can run gracefully
+    }
+  }
 }

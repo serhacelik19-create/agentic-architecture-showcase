@@ -7,6 +7,8 @@ export interface ProgressUpdate {
   percentage: number;
   message: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  agentName?: string;
+  agentMessage?: string;
 }
 
 class ProgressEmitter extends EventEmitter {

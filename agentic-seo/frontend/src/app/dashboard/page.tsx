@@ -3,14 +3,56 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+interface Domain {
+  id: string;
+  name: string;
+  domainUrl: string;
+  brandTone: string;
+}
+
+interface Article {
+  id: string;
+  keyword: string;
+  title: string;
+  content: string;
+  tone: string;
+  status: 'draft' | 'published';
+  publishedUrl?: string;
+  googleRank?: number | null;
+  proposedContent?: string | null;
+  proposedSeoScore?: number | null;
+  hasPendingRecovery?: boolean;
+  lastCheckedAt?: string | null;
+  seoScore?: number;
+  domain?: Domain | null;
+  domainId?: string | null;
+}
+
+interface ClusterStrategy {
+  pillar: string;
+  support1: string;
+  support2: string;
+  explanation: string;
+}
+
 export default function DashboardPage() {
-  const [articles, setArticles] = useState<any[]>([]);
-  const [domains, setDomains] = useState<any[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [domainFilter, setDomainFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [updatingRankId, setUpdatingRankId] = useState<string | null>(null);
+
+  // Premium modern toast notification state
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 5000);
+  };
 
   const fetchData = async () => {
     try {
@@ -52,11 +94,11 @@ export default function DashboardPage() {
           setArticles(articlesData.articles);
         }
       } else {
-        alert('Failed to update rank: ' + (data.error || 'Unknown error'));
+        showNotification('Failed to update rank: ' + (data.error || 'Unknown error'), 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('Error connecting to backend.');
+      showNotification('Error connecting to backend.', 'error');
     } finally {
       setUpdatingRankId(null);
     }
@@ -65,7 +107,131 @@ export default function DashboardPage() {
   const handleCopy = (content: string) => {
     // Strip HTML for simple copying if needed, or copy raw HTML
     navigator.clipboard.writeText(content);
-    alert('Article content successfully copied to clipboard!');
+    showNotification('Article content successfully copied to clipboard!', 'success');
+  };
+
+  const sentinelAbortRef = React.useRef<AbortController | null>(null);
+  const [runningSentinel, setRunningSentinel] = useState(false);
+  const [processingApprovalId, setProcessingApprovalId] = useState<string | null>(null);
+
+  const handleCancelSentinel = () => {
+    if (sentinelAbortRef.current) {
+      sentinelAbortRef.current.abort();
+      setRunningSentinel(false);
+    }
+  };
+
+  const handleRunSentinel = async () => {
+    setRunningSentinel(true);
+    const controller = new AbortController();
+    sentinelAbortRef.current = controller;
+
+    try {
+      const res = await fetch('http://localhost:5001/api/autopilot/sentinel', {
+        method: 'POST',
+        signal: controller.signal
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(data.message || 'Autonomous Sentinel Scan Completed successfully!', 'success');
+        fetchData(); // Refresh data
+      } else {
+        showNotification('Sentinel check failed: ' + (data.error || 'Unknown error'), 'error');
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        showNotification('Autonomous Sentinel scan successfully canceled by user.', 'info');
+      } else {
+        console.error(err);
+        showNotification('Backend connection error or sentinel scan timed out.', 'error');
+      }
+    } finally {
+      setRunningSentinel(false);
+      sentinelAbortRef.current = null;
+    }
+  };
+
+  const handleApproveRecovery = async (articleId: string, approve: boolean) => {
+    setProcessingApprovalId(articleId);
+    try {
+      const res = await fetch('http://localhost:5001/api/autopilot/approve-recovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articleId, approve })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(data.message || (approve ? 'SEO recovery approved and article successfully updated!' : 'Recovery recommendation dismissed.'), approve ? 'success' : 'info');
+        fetchData(); // Refresh
+      } else {
+        showNotification('Operation failed: ' + (data.error || 'Unknown error'), 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification('Backend connection error.', 'error');
+    } finally {
+      setProcessingApprovalId(null);
+    }
+  };
+
+  // Competitor Sitemap Watcher & Counter-Offensive States
+  const [competitorDomain, setCompetitorDomain] = useState('');
+  const [scanningCompetitor, setScanningCompetitor] = useState(false);
+  const [clusterStrategy, setClusterStrategy] = useState<ClusterStrategy | null>(null);
+  const [enqueuingCluster, setEnqueuingCluster] = useState(false);
+
+  const handleScanCompetitor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!competitorDomain.trim()) return;
+    setScanningCompetitor(true);
+    setClusterStrategy(null);
+    try {
+      const res = await fetch('http://localhost:5001/api/competitor/sitemap-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitorDomain })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setClusterStrategy(data.strategy);
+      } else {
+        showNotification('Competitor scan failed: ' + (data.error || 'Unknown error'), 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification('Error connecting to backend competitor manager.', 'error');
+    } finally {
+      setScanningCompetitor(false);
+    }
+  };
+
+  const handleApproveCluster = async () => {
+    if (!clusterStrategy) return;
+    setEnqueuingCluster(true);
+    try {
+      const res = await fetch('http://localhost:5001/api/competitor/approve-cluster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pillar: clusterStrategy.pillar,
+          support1: clusterStrategy.support1,
+          support2: clusterStrategy.support2
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(`Counter-Offensive Plan Approved! ${data.message}`, 'success');
+        setClusterStrategy(null);
+        setCompetitorDomain('');
+      } else {
+        showNotification('Enqueue failed: ' + (data.error || 'Unknown error'), 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification('Error enqueuing topics.', 'error');
+    } finally {
+      setEnqueuingCluster(false);
+    }
   };
 
   // Filter Articles
@@ -92,29 +258,85 @@ export default function DashboardPage() {
     <div style={{ maxWidth: '1200px', margin: '3.5rem auto', padding: '0 2.5rem' }}>
       
       {/* Premium Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '2.5rem' }}>
-        <div style={{ 
-          width: '52px', 
-          height: '52px', 
-          borderRadius: '16px', 
-          background: 'var(--primary-glow)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          border: '1px solid rgba(99, 102, 241, 0.15)',
-          color: 'var(--primary)'
-        }}>
-          <svg style={{ width: '28px', height: '28px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-          </svg>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem', marginBottom: '2.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ 
+            width: '52px', 
+            height: '52px', 
+            borderRadius: '16px', 
+            background: 'var(--primary-glow)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            border: '1px solid rgba(99, 102, 241, 0.15)',
+            color: 'var(--primary)'
+          }}>
+            <svg style={{ width: '28px', height: '28px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="gradient-text" style={{ fontSize: '2.25rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
+              Content Library & Analytics
+            </h1>
+            <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+              Review, optimize, and track published SEO assets and search performance indicators.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="gradient-text" style={{ fontSize: '2.25rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
-            Content Library & Analytics
-          </h1>
-          <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-            Review, optimize, and track published SEO assets and search performance indicators.
-          </p>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button 
+            onClick={handleRunSentinel}
+            disabled={runningSentinel}
+            className="btn btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, var(--accent), hsl(325, 95%, 40%))',
+              boxShadow: '0 4px 14px -4px var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1.25rem',
+              borderRadius: '12px',
+              fontSize: '0.9rem',
+              fontWeight: 700
+            }}
+          >
+            {runningSentinel ? (
+              <>
+                <svg className="spinner-mini" style={{ width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+                </svg>
+                <span>Running Sentinel Scan...</span>
+              </>
+            ) : (
+              <>
+                <svg style={{ width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>Start Autonomous Sentinel Scan</span>
+              </>
+            )}
+          </button>
+          
+          {runningSentinel && (
+            <button 
+              onClick={handleCancelSentinel}
+              className="btn btn-secondary"
+              style={{
+                padding: '0.75rem 1.25rem',
+                borderRadius: '12px',
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                color: 'var(--error)',
+                background: 'rgba(239, 68, 68, 0.05)',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          )}
         </div>
       </div>
 
@@ -270,6 +492,140 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      {/* 🚨 Competitor Sitemap Watch & Topic Cluster Counter-Offensive Panel */}
+      <section className="glass-panel" style={{ padding: '2.5rem', marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.4rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <svg style={{ width: '20px', height: '20px', color: 'var(--accent)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          🚨 Competitor Watcher & Autonomous Counter-Offensive
+        </h2>
+        <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+          Scrape competitor sitemaps/RSS to track their new content and instantly plan a Counter-Offensive Topic Cluster using AI.
+        </p>
+
+        <form onSubmit={handleScanCompetitor} style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div style={{ flex: '1 1 300px' }}>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Competitor website address (e.g. competitor.com)..."
+              value={competitorDomain}
+              onChange={e => setCompetitorDomain(e.target.value)}
+              disabled={scanningCompetitor}
+            />
+          </div>
+          <button 
+            type="submit"
+            disabled={scanningCompetitor || !competitorDomain.trim()}
+            className="btn btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+              borderColor: 'transparent',
+              padding: '0.85rem 1.5rem',
+              borderRadius: '12px',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              boxShadow: '0 4px 12px -4px var(--primary)'
+            }}
+          >
+            {scanningCompetitor ? 'Scanning Sitemap...' : 'Scan New Topics & Plan Strategy'}
+          </button>
+        </form>
+
+        {clusterStrategy && (
+          <div style={{
+            marginTop: '1.5rem',
+            padding: '1.5rem',
+            borderRadius: '16px',
+            background: 'rgba(99, 102, 241, 0.02)',
+            border: '1px solid rgba(99, 102, 241, 0.15)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--primary)' }}>
+                🎯 AI Counter-Offensive Plan (Topic Cluster Strategy)
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.45' }}>
+                {clusterStrategy.explanation}
+              </p>
+            </div>
+
+            {/* Visual Topic Cluster Map */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '1rem',
+              margin: '0.5rem 0'
+            }}>
+              {/* Pillar Post Card */}
+              <div style={{
+                padding: '1rem',
+                borderRadius: '12px',
+                background: '#ffffff',
+                border: '2px solid var(--primary)',
+                boxShadow: '0 4px 10px rgba(99,102,241,0.04)',
+                textAlign: 'center'
+              }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--primary)', background: 'var(--primary-glow)', padding: '0.15rem 0.45rem', borderRadius: '4px', textTransform: 'uppercase', display: 'inline-block', marginBottom: '0.5rem' }}>
+                  Pillar Content (Core Guide)
+                </span>
+                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{clusterStrategy.pillar}</p>
+              </div>
+
+              {/* Support Post 1 Card */}
+              <div style={{
+                padding: '1rem',
+                borderRadius: '12px',
+                background: '#ffffff',
+                border: '1px dashed var(--border)',
+                textAlign: 'center'
+              }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--secondary)', background: 'var(--secondary-glow)', padding: '0.15rem 0.45rem', borderRadius: '4px', textTransform: 'uppercase', display: 'inline-block', marginBottom: '0.5rem' }}>
+                  Support Content (Semantic Support)
+                </span>
+                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{clusterStrategy.support1}</p>
+              </div>
+
+              {/* Support Post 2 Card */}
+              <div style={{
+                padding: '1rem',
+                borderRadius: '12px',
+                background: '#ffffff',
+                border: '1px dashed var(--border)',
+                textAlign: 'center'
+              }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent)', background: 'var(--accent-glow)', padding: '0.15rem 0.45rem', borderRadius: '4px', textTransform: 'uppercase', display: 'inline-block', marginBottom: '0.5rem' }}>
+                  Technical Edge (Technical Focus)
+                </span>
+                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{clusterStrategy.support2}</p>
+              </div>
+            </div>
+
+            <button 
+              onClick={handleApproveCluster}
+              disabled={enqueuingCluster}
+              className="btn btn-primary"
+              style={{
+                alignSelf: 'flex-start',
+                background: 'linear-gradient(135deg, var(--success), hsl(150, 95%, 28%))',
+                borderColor: 'transparent',
+                boxShadow: '0 4px 10px -4px var(--success)',
+                padding: '0.65rem 1.25rem',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer'
+              }}
+            >
+              {enqueuingCluster ? 'Enqueuing...' : 'Approve Offensive & Add to Queue'}
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* Content Library List */}
       <section className="glass-panel" style={{ padding: '2.5rem' }}>
@@ -500,11 +856,128 @@ export default function DashboardPage() {
 
                 </div>
 
+                {a.hasPendingRecovery && (
+                  <div style={{
+                    width: '100%',
+                    marginTop: '1.25rem',
+                    padding: '1.25rem',
+                    borderRadius: '12px',
+                    background: 'rgba(245, 158, 11, 0.05)',
+                    border: '1px dashed rgba(245, 158, 11, 0.35)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(35, 92%, 35%)', fontWeight: 700, fontSize: '0.9rem' }}>
+                      <svg style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      <span>Autonomous Sentinel Alert: Search Rank Drop Detected!</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.45' }}>
+                      Through Google Search Console tracking, your rank for keyword <strong>"{a.keyword}"</strong> dropped to <strong>#{a.googleRank || 'Unranked'}</strong>. Our agent re-analyzed competitors and crafted a higher semantic value draft (Proposed Score: <strong>{a.proposedSeoScore}/100</strong>).
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>
+                      <button 
+                        onClick={() => handleApproveRecovery(a.id, true)}
+                        disabled={processingApprovalId === a.id}
+                        className="btn btn-primary"
+                        style={{
+                          padding: '0.45rem 1rem',
+                          fontSize: '0.8rem',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, var(--success), hsl(150, 95%, 28%))',
+                          borderColor: 'transparent',
+                          boxShadow: '0 4px 10px -4px var(--success)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {processingApprovalId === a.id ? (
+                          <>
+                            <svg className="spinner-mini" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                              <line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+                            </svg>
+                            <span>Applying...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span>Approve & Publish Recovery</span>
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        onClick={() => handleApproveRecovery(a.id, false)}
+                        disabled={processingApprovalId === a.id}
+                        className="btn btn-secondary"
+                        style={{
+                          padding: '0.45rem 1rem',
+                          fontSize: '0.8rem',
+                          borderRadius: '8px',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {/* Premium modern non-blocking notification toast */}
+      {notification && (
+        <div 
+          className="toast-slide-in"
+          style={{
+            position: 'fixed',
+            bottom: '2rem',
+            right: '2rem',
+            background: notification.type === 'success' ? '#10b981' : notification.type === 'error' ? '#ef4444' : 'var(--primary)',
+            color: '#ffffff',
+            padding: '1rem 1.5rem',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.15)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}
+        >
+          <span>{notification.type === 'success' ? '✓' : notification.type === 'error' ? '⚠️' : 'ℹ️'}</span>
+          <span>{notification.message}</span>
+          <button 
+            onClick={() => setNotification(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#ffffff',
+              cursor: 'pointer',
+              marginLeft: '0.5rem',
+              fontWeight: 800,
+              fontSize: '1rem'
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }

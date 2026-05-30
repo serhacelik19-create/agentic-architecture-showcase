@@ -26,3 +26,11 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Test coverage output
+coverage/
+/backend/coverage/
+/frontend/coverage/
+
+# Compiled output
+/backend/dist/

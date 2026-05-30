@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { getDomains, createDomain, deleteDomain } from '../controllers/domainController';
+import { getDomains, createDomain, deleteDomain, updateDomainWebflowConfig } from '../controllers/domainController';
+import { requireApiKey } from '../middleware/auth';
 
 const router = Router();
 
 router.get('/', getDomains);
-router.post('/', createDomain);
-router.delete('/:id', deleteDomain);
+router.post('/', requireApiKey, createDomain);
+router.delete('/:id', requireApiKey, deleteDomain);
+router.put('/:id/webflow-config', requireApiKey, updateDomainWebflowConfig);
 
 export default router;
